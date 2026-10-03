@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="gl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gachapaint</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23DCE3F2' stroke='%23231C5C' stroke-width='5'/%3E%3Cpath d='M4 32a28 28 0 0 1 56 0z' fill='%23FF7AB6' stroke='%23231C5C' stroke-width='5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/gachapaint.css">
+</head>
+<body>
+<header>
+  <h1 class="logo"><svg width="52" height="52" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="28" cy="36" r="22" fill="#DCE3F2" stroke="#231C5C" stroke-width="4"/>
+    <path d="M6 36a22 22 0 0 1 44 0z" fill="#fff" stroke="#231C5C" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M9.5 34c2-8 8-14 15-16 5 2 3 6-1 7 6 1 9-4 13-3 4 2 3 7 9 11z" fill="#FF7AB6" stroke="#231C5C" stroke-width="3" stroke-linejoin="round"/>
+    <ellipse cx="18" cy="24" rx="5" ry="3" fill="#fff" opacity=".7"/>
+    <g transform="rotate(38 46 18)"><rect x="43" y="-6" width="7" height="22" rx="3" fill="#C98A4B" stroke="#231C5C" stroke-width="3"/>
+    <rect x="42" y="14" width="9" height="7" fill="#BDBDC7" stroke="#231C5C" stroke-width="3"/>
+    <path d="M42 21h9c0 6-2 10-4.5 12C44 31 42 27 42 21z" fill="#FF7AB6" stroke="#231C5C" stroke-width="3" stroke-linejoin="round"/></g>
+  </svg><span>Gachapaint</span></h1>
+  <div class="hright">
+    <span class="chip" id="streakChip">🔥 0</span>
+    <button class="flagbtn" id="langBtn"></button>
+    <button class="iconbtn" id="setBtn">⚙️</button>
+  </div>
+</header>
+
+<main>
+  <section class="view on" id="v-machine">
+    <div class="machine">
+      <div class="cabinet">
+        <div class="marquee"><div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span id="marqText"></span></div>
+        <div class="window" id="win"><canvas id="balls"></canvas><div class="empty" id="winEmpty" data-i18n="emptyMachine"></div></div>
+      </div>
+      <div class="mbody">
+        <div class="budget"><small data-i18n="todayBudget"></small>
+          <div class="coins"><span class="coin" data-b="100">¥100</span><span class="coin c500" data-b="500">¥500</span><span class="coin c1000" data-b="1000">¥1000</span></div>
+        </div>
+        <div class="lamps" id="lamps"></div>
+        <button class="crank" id="crank"></button>
+        <div class="crank-label" data-i18n="turn"></div>
+        <div class="chute"><button class="mini" id="mini"></button></div>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="poolcount" id="poolcount"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+  <section class="view" id="v-draw"></section>
+  <section class="view" id="v-inv"></section>
+  <section class="view" id="v-rank"></section>
+</main>
+
+<nav><div class="in">
+  <button data-v="machine" class="on"><span class="ic">🎰</span><span data-i18n="navMachine"></span></button>
+  <button data-v="draw"><span class="ic">🖍️</span><span data-i18n="navDraw"></span></button>
+  <button data-v="inv"><span class="ic">🎒</span><span data-i18n="navInv"></span></button>
+  <button data-v="rank"><span class="ic">🏆</span><span data-i18n="navRank"></span></button>
+</div></nav>
+
+<div class="overlay" id="reveal">
+  <div class="stage" id="stage">
+    <div class="rays"></div>
+    <button class="bigcap" id="bigcap"><div class="half top" id="capTop"></div><div class="half bot"></div></button>
+    <p class="hint" data-i18n="tapToOpen"></p>
+    <img class="prize" id="tImg" alt="">
+    <div class="tag" id="tag">
+      <span class="band" id="tBand"></span>
+      <div class="verdict" id="tVerdict"></div>
+      <div class="tname" id="tName"></div>
+      <div class="tprice" id="tPrice"></div>
+      <div class="tauthor" id="tAuthor"></div>
+      <button class="btn primary" id="keepBtn" data-i18n="keep"></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="js/config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
