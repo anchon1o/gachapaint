@@ -58,6 +58,19 @@ const RemoteAPI = (()=>{
     keep:rel=>rpc('gch_keep',{p_secret:secret,p_release:rel||null}),
     release:id=>rpc('gch_release',{p_secret:secret,p_item:id}),
     ranking:()=>rpc('gch_ranking',{p_secret:secret}),
+    seen:()=>rpc('gch_seen',{p_secret:secret}),
+    react:(id,r)=>rpc('gch_react',{p_secret:secret,p_item:id,p_reaction:r}),
+    report:id=>rpc('gch_report',{p_secret:secret,p_item:id}),
+    album:()=>rpc('gch_album',{p_secret:secret}),
+    find:q=>rpc('gch_find',{p_secret:secret,p_q:q}),
+    gift:(id,to)=>rpc('gch_gift',{p_secret:secret,p_item:id,p_to:to}),
+    // código de xogador para recuperar a partida noutro dispositivo
+    getCode:()=>secret,
+    async useCode(code){
+      const old=secret; secret=String(code||'').trim();
+      try{ const m=await rpc('gch_me',{p_secret:secret}); try{localStorage.setItem(KEY,secret);}catch(e){} return m; }
+      catch(e){ secret=old; throw e.code==='network'?e:apiError('bad_code'); }
+    },
   };
 })();
 
@@ -97,16 +110,24 @@ const LocalAPI = (()=>{
     kinds.forEach((k,i)=>{ const id=uid(); S.items[id]={id,name:t('seeds')[k],value:v[i],author,img:artCache[k],mine:false}; S.pool.push(id); });
   }
   function fresh(){
-    S={offset:0,name:'',streak:0,lastDay:null,drewDay:null,pullsDay:null,pulls:0,inv:[],items:{},pool:[],pending:null,seedDay:null,started:false,goal:100,
+    S={events:[],album:[],tandas:0,tandasDay:null,offset:0,name:'',streak:0,lastDay:null,drewDay:null,pullsDay:null,pulls:0,inv:[],items:{},pool:[],pending:null,seedDay:null,started:false,goal:100,
        bots:[{n:'Marta',c:18,t:412},{n:'Brais',c:9,t:236},{n:'Uxía',c:20,t:604},{n:'Iago',c:6,t:41},{n:'Noa',c:12,t:150},
              {n:'Xoán',c:15,t:3},{n:'Antía',c:4,t:3},{n:'Lúa',c:3,t:88},{n:'Pablo',c:11,t:97}]};
     for(let k=0;k<11;k++) botBatch();
   }
+  // simulación: os bots levan algúns dos teus debuxos e reaccionan
+  function botsTakeMine(){
+    const mine=S.pool.filter(id=>S.items[id].mine);
+    mine.sort(()=>Math.random()-.5).slice(0,rnd(0,Math.min(3,mine.length))).forEach(id=>{
+      S.pool=S.pool.filter(x=>x!==id);
+      S.events.push({id:uid(),kind:'took',who:BOTS[rnd(0,BOTS.length-1)],item:S.items[id].name,reaction:['love','meh',null][rnd(0,2)],seen:false});
+    });
+  }
   function tick(){
-    if(!S){ S=load(); if(!S) fresh(); }
+    if(!S){ S=load(); if(!S) fresh(); S.events=S.events||[]; S.album=S.album||[]; }
     const d=today();
     if(S.pullsDay!==d){ S.pullsDay=d; S.pulls=0; }
-    if(S.seedDay!==d){ if(S.seedDay!==null) botBatch(); S.seedDay=d; }
+    if(S.seedDay!==d){ if(S.seedDay!==null){ botBatch(); botsTakeMine(); } S.seedDay=d; }
     if(!S.started && S.pool.length>=S.goal) S.started=true;
     save();
   }
@@ -119,7 +140,11 @@ const LocalAPI = (()=>{
     return {id:'me',name:S.name,streak:curStreak(),next_streak:ns,budget:budgetFor(ns),drew_today:drew,
       pulls_left:S.started&&drew?Math.max(0,3-S.pulls):0,capacity:capacity(),started:S.started,goal:S.goal,
       pending:S.pending?itemOut(S.pending):null,
-      inventory:S.inv.map(itemOut).sort((a,b)=>b.value-a.value)};
+      inventory:S.inv.map(itemOut).sort((a,b)=>b.value-a.value),
+      tandas_left:S.started?null:Math.max(0,5-(S.tandasDay===d?S.tandas:0)),
+      events:S.events.filter(e=>!e.seen).slice(-20).reverse(),
+      hearts:S.events.filter(e=>e.kind==='took'&&e.reaction==='love').length,
+      laughs:S.events.filter(e=>e.kind==='took'&&e.reaction==='meh').length};
   }
   const ok=v=>Promise.resolve(v);
   const wrap=fn=>(...a)=>{ try{ tick(); return ok(fn(...a)); }catch(e){ return Promise.reject(e.code?e:apiError('generic')); } };
@@ -133,9 +158,10 @@ const LocalAPI = (()=>{
     submit:wrap(items=>{
       const d=today();
       if(S.started && S.drewDay===d) throw apiError('already_drew');
+      if(!S.started && S.tandasDay===d && S.tandas>=5) throw apiError('tanda_limit');
       const sum=items.reduce((a,i)=>a+i.value,0); if(sum!==budgetFor(nextStreak())) throw apiError('sum');
       items.forEach(i=>{ const id=uid(); S.items[id]={id,name:i.name,value:i.value,author:S.name,img:i.img,mine:true}; S.pool.push(id); });
-      S.streak=nextStreak(); S.lastDay=d; S.drewDay=d;
+      S.streak=nextStreak(); S.lastDay=d; S.drewDay=d; S.tandas=S.tandasDay===d?S.tandas+1:1; S.tandasDay=d;
       if(!S.started && S.pool.length>=S.goal) S.started=true;
       save(); return me();
     }),
@@ -145,7 +171,7 @@ const LocalAPI = (()=>{
       if(S.pending) throw apiError('pending'); if(m.pulls_left<=0) throw apiError('no_pulls'); if(!S.pool.length) throw apiError('empty');
       const w=S.pool.map(id=>S.items[id].mine?0.35:1), tot=w.reduce((a,b)=>a+b,0);
       let r=Math.random()*tot, i=0; for(;i<w.length-1;i++){ r-=w[i]; if(r<=0) break; }
-      const id=S.pool.splice(i,1)[0]; S.pending=id; S.pulls++; save(); return itemOut(id);
+      const id=S.pool.splice(i,1)[0]; S.pending=id; S.pulls++; if(!S.album.includes(id)) S.album.push(id); save(); return itemOut(id);
     }),
     keep:wrap(rel=>{
       if(!S.pending) throw apiError('no_pending');
@@ -161,9 +187,21 @@ const LocalAPI = (()=>{
       return {rich:[...all].sort((a,b)=>b.total-a.total||b.count-a.count),
               poor:all.filter(p=>p.count>0).sort((a,b)=>a.total-b.total||b.count-a.count)};
     }),
+    seen:wrap(()=>{ S.events.forEach(e=>e.seen=true); save(); return {}; }),
+    react:wrap(()=>({})),
+    report:wrap(id=>{
+      if(S.pending===id){ S.pending=null; S.pulls=Math.max(0,S.pulls-1); }
+      else if(S.inv.includes(id)) S.inv=S.inv.filter(x=>x!==id); else throw apiError('bad_item');
+      S.items[id].hidden=true; S.album=S.album.filter(x=>x!==id); save(); return me();
+    }),
+    album:wrap(()=>[...S.album].reverse().filter(id=>S.items[id]&&!S.items[id].hidden).map(itemOut)),
+    find:wrap(q=>{ q=String(q).trim().toLowerCase(); return BOTS.filter(n=>n.toLowerCase().startsWith(q)).map(n=>({id:'bot:'+n,name:n})); }),
+    gift:wrap((id,to)=>{ if(!S.inv.includes(id)) throw apiError('bad_item'); S.inv=S.inv.filter(x=>x!==id); save(); return me(); }),
+    getCode:()=>null,
+    useCode:()=>Promise.reject(apiError('bad_code')),
     // só no modo proba
     nextDay:wrap(()=>{ S.offset++; save(); tick(); return me(); }),
-    simulate:wrap(()=>{ for(let k=0;k<10;k++) botBatch(); if(!S.started && S.pool.length>=S.goal) S.started=true; save(); return me(); }),
+    simulate:wrap(()=>{ for(let k=0;k<10;k++) botBatch(); botsTakeMine(); if(!S.started && S.pool.length>=S.goal) S.started=true; save(); return me(); }),
     reset:()=>{ try{localStorage.removeItem(LS);}catch(e){} S=null; tick(); return ok(me()); },
   };
 })();

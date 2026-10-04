@@ -78,6 +78,34 @@ Cando che pase ficheiros novos: en GitHub, entra no repositorio → **Add file**
 
 ---
 
+## Actualizar a base de datos (cando cambie `schema.sql`)
+
+Se che paso un `schema.sql` novo, execútao enteiro outra vez igual que no paso 1 (SQL Editor → New query → pegar → Run). Está preparado para executarse varias veces: engade o que falte e **non borra** xogadores, debuxos nin inventarios.
+
+## Sons
+
+Mete os ficheiros MP3 no cartafol `sounds`, cos nomes exactos que aparecen en `sounds/LEME.txt`. Se falta algún, o xogo usa un pitido no seu lugar. Cada persoa pode apagar efectos e música en ⚙️.
+
+## Moderación
+
+Cando un debuxo recibe 3 denuncias de persoas distintas, desaparece da máquina e queda oculto. Para revisalos:
+
+Ver os debuxos ocultos:
+```sql
+select id, name, author_name, img from gch_items where hidden;
+```
+
+Se está ben, devolvelo á máquina:
+```sql
+update gch_items set hidden = false, in_pool = true where id = 'pega-aquí-o-id';
+delete from gch_reports where item_id = 'pega-aquí-o-id';
+```
+
+Se está mal, borralo (e despois borra a imaxe en Storage, como se explica máis abaixo):
+```sql
+delete from gch_items where id = 'pega-aquí-o-id';
+```
+
 ## Axustes útiles en Supabase (SQL Editor)
 
 Cambiar cantos obxectos fan falta para arrancar:

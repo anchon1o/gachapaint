@@ -2,6 +2,8 @@
 // Gachapaint · interface
 // =====================================================================
 const $ = id => document.getElementById(id);
+const ICONS={pen:'icons/pen.png',line:'icons/line.png',rect:'icons/rect.png',ellipse:'icons/ellipse.png',fill:'icons/fill.png',
+  eraser:'icons/eraser.png',undo:'icons/undo.png',smooth:'icons/smooth.png',zoom:'icons/zoom.png',clear:'icons/clear.png'};
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let ME=null, POOL={started:false,goal:100,items:[]}, view='machine', busy=false;
 
@@ -32,7 +34,27 @@ const PALETTE=[0,1,2,3].flatMap(k=>FAMILIES.map(f=>f[k]));
 /* ---------- utilidades ---------- */
 let toastT;
 function toast(m){ const el=$('toast'); el.textContent=m; el.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('on'),2600); }
-function errToast(e){ const c=e&&e.code; toast(c==='network'||c==='upload'?t('eNet'):c==='store'?t('eStore'):t('eGeneric')); }
+function errToast(e){ const c=e&&e.code;
+  toast(c==='network'||c==='upload'?t('eNet'):c==='store'?t('eStore'):c==='bad_code'?t('eBadCode'):c==='tanda_limit'?t('eTanda'):c==='full_target'?t('eFullTarget'):t('eGeneric')); }
+/* ---------- son: ficheiros en sounds/ ; se non existen, pitidos sintéticos ---------- */
+const SND={fx:true,music:true,cache:{},bg:null,started:false};
+try{ SND.fx=localStorage.getItem('gachapaint.fx')!=='0'; SND.music=localStorage.getItem('gachapaint.music')!=='0'; }catch(e){}
+const SOUNDS={crank:'sounds/crank.mp3',rattle:'sounds/rattle.mp3',drop:'sounds/drop.mp3',open:'sounds/open.mp3',
+  low:'sounds/reveal-low.mp3',mid:'sounds/reveal-mid.mp3',high:'sounds/reveal-high.mp3',coin:'sounds/coin.mp3'};
+const MUSIC='sounds/music.mp3';
+for(const k in SOUNDS){ const a=new Audio(); const e={el:a,ok:false}; a.preload='auto';
+  a.oncanplaythrough=()=>e.ok=true; a.onerror=()=>e.ok=false; a.src=SOUNDS[k]; SND.cache[k]=e; }
+function sfx(name,fallback){
+  if(!SND.fx) return; const e=SND.cache[name];
+  if(e&&e.ok){ const c=e.el.cloneNode(); c.volume=.8; c.play().catch(()=>{}); } else if(fallback) fallback();
+}
+function startMusic(){
+  if(!SND.music){ if(SND.bg) SND.bg.pause(); return; }
+  if(!SND.bg){ SND.bg=new Audio(MUSIC); SND.bg.loop=true; SND.bg.volume=.25; SND.bg.onerror=()=>{ SND.bg=null; }; }
+  SND.bg.play().catch(()=>{});
+}
+// os navegadores só deixan soar despois do primeiro toque
+document.addEventListener('pointerdown',()=>{ if(!SND.started){ SND.started=true; startMusic(); } },{once:true});
 let AC=null;
 function beep(f=600,d=.05,type='square',vol=.05){
   try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); const o=AC.createOscillator(),g=AC.createGain();
@@ -74,8 +96,18 @@ function render(){
 }
 async function refresh(){
   try{ const [m,p]=await Promise.all([api.me(),api.pool()]); const was=ME&&ME.started; ME=m; POOL=p;
-    if(was===false && ME.started) toast(t('tStarted')); render(); }
+    if(was===false && ME.started) toast(t('tStarted')); render(); showNews(); }
   catch(e){ if(e.code==='no_player') askName(); else errToast(e); }
+}
+
+let newsOpen=false;
+function showNews(){
+  if(newsOpen||!ME||!ME.events||!ME.events.length||$('modal').classList.contains('on')) return;
+  newsOpen=true;
+  const R={love:' ❤️',meh:' 😅'};
+  openModal(`<h3>${t('newsT')}</h3><div class="rowlist">${ME.events.map(e=>`<div class="news">${esc(e.kind==='gift'?t('newsGift',{who:e.who,item:e.item}):t('newsTook',{who:e.who,item:e.item}))}${R[e.reaction]||''}</div>`).join('')}</div>
+    <div class="stack"><button class="btn primary" id="newsOk">${t('ok')}</button></div>`);
+  $('newsOk').onclick=()=>{ closeModal(); newsOpen=false; ME.events=[]; api.seen().catch(()=>{}); };
 }
 
 /* =================== MÁQUINA =================== */
@@ -92,7 +124,8 @@ function syncBalls(){
   const inPool=new Map(POOL.items.map(i=>[i.id,i])), have=new Set(PH.balls.map(b=>b.id));
   PH.balls=PH.balls.filter(b=>inPool.has(b.id)||b.keep);
   const tr=targetR(); let k=0;
-  POOL.items.forEach(it=>{ if(have.has(it.id)) return;
+  const MAXB=250; let count=PH.balls.length;
+  POOL.items.forEach(it=>{ if(have.has(it.id)||count>=MAXB) return; count++;
     PH.balls.push({id:it.id,c:tier(it.value).c,r:tr,x:tr+Math.random()*(PH.W-2*tr),y:-tr-(k++)*tr*.9,vx:(Math.random()-.5)*2,vy:0,a:Math.random()*6.28}); });
   $('winEmpty').classList.toggle('on',!POOL.items.length && !PH.balls.length);
   if(!PH.raf) PH.raf=requestAnimationFrame(phLoop);
@@ -170,17 +203,18 @@ $('crank').onclick=async()=>{
   if(busy||!ME||ME.pending||ME.pulls_left<=0||!POOL.items.length) return;
   busy=true; const t0=Date.now();
   rot+=360; $('crank').style.transform=`rotate(${rot}deg)`; $('crank').classList.remove('ready');
-  [0,180,360,540,720,900].forEach((ms,i)=>setTimeout(()=>beep(300+i*40,.04),ms));
+  sfx('crank',()=>[0,180,360,540,720,900].forEach((ms,i)=>setTimeout(()=>beep(300+i*40,.04),ms)));
+  setTimeout(()=>sfx('rattle'),150);
   PH.shake=60;
   let item;
   try{ item=await api.pull(); }
-  catch(e){ busy=false; PH.shake=0; errToast(e); return refresh(); }
+  catch(e){ busy=false; PH.shake=0; if(e.code==='network') toast(t('eNetPull')); else errToast(e); return refresh(); }
   POOL.items=POOL.items.filter(x=>x.id!==item.id); ME.pending=item; ME.pulls_left--;
   new Image().src=imgSrc(item.img); // só se descarga a imaxe da bola que saíu
   const ball=PH.balls.find(b=>b.id===item.id); if(ball) ball.keep=true;
   setTimeout(()=>{
     if(ball) ball.out=true;
-    setTimeout(()=>{ busy=false; const m=$('mini'); m.classList.remove('show','wait'); void m.offsetWidth; beep(180,.12,'sine',.12); renderMachine(); },420);
+    setTimeout(()=>{ busy=false; const m=$('mini'); m.classList.remove('show','wait'); void m.offsetWidth; sfx('drop',()=>beep(180,.12,'sine',.12)); renderMachine(); },420);
   },Math.max(0,850-(Date.now()-t0)));
 };
 $('mini').onclick=openReveal;
@@ -198,14 +232,25 @@ function openReveal(){
   $('tName').textContent=it.name; $('tPrice').textContent=yen(it.value);
   $('tAuthor').textContent=it.mine?t('byYou'):t('by',{a:it.author});
   $('tVerdict').textContent=it.mine?t('vOwn'):verdict(it.value);
+  $('reacts').innerHTML=it.mine?'':['love','meh'].map(r=>`<button class="react" data-r="${r}">${t(r)}</button>`).join('');
+  $('reacts').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{
+    $('reacts').querySelectorAll('.react').forEach(x=>x.classList.toggle('on',x===b)); api.react(it.id,b.dataset.r).catch(()=>{}); });
+  $('shareBtn').textContent=t('share'); $('shareBtn').onclick=()=>shareItem(it);
+  const rb=$('reportBtn'); rb.textContent=t('report'); delete rb.dataset.sure; rb.style.display=it.mine?'none':'';
+  rb.onclick=async()=>{
+    if(!rb.dataset.sure){ rb.dataset.sure='1'; rb.textContent=t('reportSure'); return; }
+    try{ ME=await api.report(it.id); POOL=await api.pool(); $('reveal').classList.remove('on'); toast(t('reported')); render(); }catch(e){ errToast(e); }
+  };
   $('reveal').classList.add('on');
 }
 $('bigcap').onclick=()=>{
   if(revealState!=='closed') return;
   revealState='opening'; const st=$('stage'); st.classList.add('shaking');
-  [0,120,240,360].forEach((ms,i)=>setTimeout(()=>beep(500+i*90,.05,'triangle'),ms));
+  sfx('open',()=>[0,120,240,360].forEach((ms,i)=>setTimeout(()=>beep(500+i*90,.05,'triangle'),ms)));
+  const v=ME.pending?ME.pending.value:0, lvl=v<=5?'low':v<=100?'mid':'high';
   setTimeout(()=>{ st.classList.remove('shaking'); st.classList.add('open'); revealState='open';
-    beep(880,.08,'sine',.08); setTimeout(()=>beep(1320,.15,'sine',.08),90); },560);
+    sfx(lvl,()=>{ if(lvl==='low'){ beep(400,.15,'sine',.08); setTimeout(()=>beep(300,.25,'sine',.08),160); }
+      else { beep(880,.08,'sine',.08); setTimeout(()=>beep(1320,.15,'sine',.08),90); if(lvl==='high') setTimeout(()=>beep(1760,.25,'sine',.08),220); } }); },560);
 };
 $('keepBtn').onclick=async()=>{
   if(!ME.pending || busy) return;
@@ -225,8 +270,37 @@ function chooseRelease(){
   });
 }
 
+/* ---------- compartir un premio como imaxe ---------- */
+async function shareItem(it){
+  try{
+    const c=document.createElement('canvas'); c.width=600; c.height=760; const x=c.getContext('2d'), T=tier(it.value);
+    x.fillStyle='#FFD23F'; x.fillRect(0,0,600,760);
+    x.fillStyle='#FFFDF6'; x.strokeStyle='#231C5C'; x.lineWidth=10;
+    x.beginPath(); x.roundRect?x.roundRect(40,40,520,680,30):x.rect(40,40,520,680); x.fill(); x.stroke();
+    x.fillStyle=T.c; x.fillRect(45,45,510,24);
+    const im=new Image(); im.crossOrigin='anonymous';
+    await new Promise((ok,ko)=>{ im.onload=ok; im.onerror=ko; im.src=imgSrc(it.img); });
+    x.drawImage(im,130,90,340,340);
+    x.fillStyle='#231C5C'; x.textAlign='center';
+    x.font='700 34px "Chakra Petch",sans-serif'; x.fillText(it.name,300,480,480);
+    x.font='900 72px Orbitron,sans-serif'; x.fillText(yen(it.value),300,570);
+    x.font='600 24px "Chakra Petch",sans-serif'; x.fillText(it.mine?t('byYou'):t('by',{a:it.author}),300,620,480);
+    x.font='900 26px Orbitron,sans-serif'; x.fillText('Gachapaint',300,690);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    const file=new File([blob],'gachapaint.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})) await navigator.share({files:[file],text:t('shareText')+' '+location.origin});
+    else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gachapaint.png'; a.click(); }
+  }catch(e){ if(e&&e.name!=='AbortError') toast(t('eGeneric')); }
+}
+
 /* =================== DEBUXAR =================== */
 let cur=0, tool='pen', size=8, color='#231C5C', undo=[], pad, pctx, drawing=false, last=null, DRAFT=null;
+let smooth=(()=>{ try{ return localStorage.getItem('gachapaint.smooth')!=='0'; }catch(e){ return true; } })();
+let zoom={s:1,x:0,y:0};
+function clampZoom(){ const W=pad.parentElement.clientWidth;
+  zoom.s=Math.min(6,Math.max(1,zoom.s)); zoom.x=Math.min(0,Math.max(W-W*zoom.s,zoom.x)); zoom.y=Math.min(0,Math.max(W-W*zoom.s,zoom.y)); }
+function applyZoom(){ if(!pad) return; clampZoom(); pad.style.transform=`translate(${zoom.x}px,${zoom.y}px) scale(${zoom.s})`;
+  const b=$('zoomBtn'); if(b) b.classList.toggle('on',zoom.s>1.01); }
 const DKEY='gachapaint.draft';
 function draft(){
   if(!DRAFT){ try{ DRAFT=JSON.parse(localStorage.getItem(DKEY)); }catch(e){} }
@@ -234,14 +308,14 @@ function draft(){
   return DRAFT;
 }
 function saveDraft(){ try{ localStorage.setItem(DKEY,JSON.stringify(DRAFT)); }catch(e){} }
-const canDraw=()=>!ME.started||!ME.drew_today;
+const canDraw=()=>ME.started?!ME.drew_today:(ME.tandas_left==null||ME.tandas_left>0);
+function weekTheme(){ const d=new Date(), y=new Date(d.getFullYear(),0,1), w=Math.floor((d-y)/604800000); const th=t('themes'); return th[w%th.length]; }
 function renderDraw(){
   const v=$('v-draw');
-  if(!canDraw()){ v.innerHTML=`<h2>${t('doneT')}</h2><p class="sub">${t('doneB')}</p><button class="btn primary" onclick="go('machine')">${t('goMachine')}</button>`; return; }
+  if(!canDraw()){ v.innerHTML=`<h2>${t('doneT')}</h2><p class="sub">${ME.started?t('doneB'):t('eTanda')}</p><button class="btn primary" onclick="go('machine')">${t('goMachine')}</button>`; return; }
   const b=ME.budget, ns=ME.next_streak;
-  v.innerHTML=`${!ME.started?`<div class="banner">${t('fillBanner',{n:POOL.items.length,g:ME.goal})}</div>`:''}
-    <h2>${t('drawT')}</h2><p class="sub">${t('drawB',{b:yen(b)})}</p>
-    ${b>100?`<div class="banner">${t('streakBanner',{n:ns,b:yen(b)})}</div>`:''}
+  v.innerHTML=`<div class="drawhead"><h2>${t('drawT')}</h2><span class="budgettag">${yen(b)}</span></div>
+    <p class="theme">${t('themeT',{t:esc(weekTheme())})}</p>
     <div class="slots" id="slots"></div>
     <div class="padwrap"><canvas id="pad" width="256" height="256" aria-label="${t('aPad')}"></canvas></div>
     <div class="tools" id="tools"></div>
@@ -251,15 +325,28 @@ function renderDraw(){
       <label class="f">${t('fPrice')}<input id="fPrice" type="number" inputmode="numeric" min="0" max="${b}" step="1" placeholder="0"></label>
     </div>
     <div class="meter"><div class="mtext" id="mText"></div><div class="bar" id="bar"></div><div id="mSub" style="font-size:13px;color:var(--muted)"></div></div>
-    <div class="submit"><button class="btn primary" id="submitBtn">${t('submit')}</button></div>`;
+    <div class="submit"><button class="btn primary" id="submitBtn">${t('submit')}</button></div>
+    <div class="drawinfo"><p class="sub">${t('drawB',{b:yen(b)})}</p><p class="sub">${t('zoomHint')}</p>
+    ${b>100?`<div class="banner">${t('streakBanner',{n:ns,b:yen(b)})}</div>`:''}
+    ${!ME.started?`<div class="banner">${t('fillBanner',{n:POOL.items.length,g:ME.goal})} ${ME.tandas_left!=null?t('tandaLeft',{n:ME.tandas_left}):''}</div>`:''}</div>`;
   pad=$('pad'); pctx=pad.getContext('2d',{willReadFrequently:true}); pctx.lineCap='round'; pctx.lineJoin='round';
   loadSlot(cur);
   const T=$('tools');
-  T.innerHTML=[['pen','tPen'],['fill','tFill'],['eraser','tEraser']].map(([k,l])=>`<button class="tool ${tool===k?'on':''}" data-t="${k}">${t(l)}</button>`).join('')
+  const IK={tPen:'pen',tLine:'line',tRect:'rect',tCircle:'ellipse',tFill:'fill',tEraser:'eraser',tUndo:'undo',tSmooth:'smooth',tZoom:'zoom'};
+  const lab=key=>{ const s=t(key), i=s.indexOf(' '); return `<img class="ti" src="${ICONS[IK[key]]}" alt=""><span class="tl">${s.slice(i+1)}</span>`; };
+  const tl=key=>esc(t(key).slice(t(key).indexOf(' ')+1));
+  T.innerHTML=[['pen','tPen'],['line','tLine'],['rect','tRect'],['ellipse','tCircle'],['fill','tFill'],['eraser','tEraser']]
+      .map(([k,l])=>`<button class="tool ${tool===k?'on':''}" data-t="${k}" aria-label="${tl(l)}">${lab(l)}</button>`).join('')
+    + `<button class="tool" id="undoBtn" aria-label="${tl('tUndo')}">${lab('tUndo')}</button>`
     + [3,8,16,30].map(s=>`<button class="tool ${size===s?'on':''}" data-s="${s}" aria-label="${t('aSize',{n:s})}"><span class="dotsz" style="width:${Math.max(5,s*.7)}px;height:${Math.max(5,s*.7)}px"></span></button>`).join('')
-    + `<button class="tool" id="undoBtn">${t('tUndo')}</button><button class="tool" id="clearBtn">${t('tClear')}</button>`;
+    + `<button class="tool ${smooth?'on':''}" id="smoothBtn" aria-label="${tl('tSmooth')}" aria-pressed="${smooth}">${lab('tSmooth')}</button>`
+    + `<button class="tool" id="zoomBtn" aria-label="${tl('tZoom')}">${lab('tZoom')}</button>`
+    + `<button class="tool" id="clearBtn" aria-label="${esc(t('tClear'))}"><img class="ti" src="${ICONS.clear}" alt=""><span class="tl">${t('tClear')}</span></button>`;
   T.querySelectorAll('[data-t]').forEach(x=>x.onclick=()=>{tool=x.dataset.t;renderTools();});
   T.querySelectorAll('[data-s]').forEach(x=>x.onclick=()=>{size=+x.dataset.s;renderTools();});
+  $('smoothBtn').onclick=()=>{ smooth=!smooth; try{localStorage.setItem('gachapaint.smooth',smooth?'1':'0');}catch(e){}
+    $('smoothBtn').classList.toggle('on',smooth); $('smoothBtn').setAttribute('aria-pressed',smooth); };
+  $('zoomBtn').onclick=()=>{ zoom={s:1,x:0,y:0}; applyZoom(); };
   $('undoBtn').onclick=()=>{ if(!undo.length) return; pctx.putImageData(undo.pop(),0,0); commit(-1); };
   $('clearBtn').onclick=()=>{ undo.push(pctx.getImageData(0,0,256,256)); pctx.clearRect(0,0,256,256); const s=draft().slots[cur]; s.strokes=0; s.img=null; saveDraft(); renderSlots(); };
   $('palette').innerHTML=PALETTE.map(c=>`<button class="sw ${c===color?'on':''}" style="background:${c}" data-c="${c}" aria-label="${t('aColor',{n:c})}"></button>`).join('');
@@ -267,7 +354,7 @@ function renderDraw(){
   $('fName').oninput=e=>{draft().slots[cur].name=e.target.value;saveDraft();renderSlots();renderMeter();};
   $('fPrice').oninput=e=>{draft().slots[cur].price=e.target.value;saveDraft();renderMeter();renderSlots();};
   $('submitBtn').onclick=submitDrawings;
-  bindPad(); renderSlots(); renderMeter();
+  bindPad(); applyZoom(); renderSlots(); renderMeter();
 }
 function renderTools(){
   document.querySelectorAll('#tools [data-t]').forEach(x=>x.classList.toggle('on',x.dataset.t===tool));
@@ -277,8 +364,8 @@ function renderTools(){
 function renderSlots(){
   $('slots').innerHTML=draft().slots.map((s,i)=>{
     const ok=s.strokes>0 && s.name.trim() && s.price!=='';
-    return `<button class="slot ${i===cur?'on':''}" data-i="${i}"><img alt="" src="${s.img||'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">
-      ${t('slot',{i:i+1})}${ok?' <span class="ok">✓</span>':''}</button>`;}).join('');
+    return `<button class="slot ${i===cur?'on':''}" data-i="${i}">${s.img?`<img alt="" src="${s.img}">`:'<span class="ph"></span>'}
+      <b class="sn">${i+1}</b><span class="sl">${t('slot',{i:i+1})}</span>${ok?' <span class="ok">✓</span>':''}</button>`;}).join('');
   $('slots').querySelectorAll('.slot').forEach(x=>x.onclick=()=>{ if(+x.dataset.i===cur) return; cur=+x.dataset.i; loadSlot(cur); renderSlots(); });
 }
 function loadSlot(i){
@@ -287,22 +374,75 @@ function loadSlot(i){
   $('fName').value=s.name; $('fPrice').value=s.price;
 }
 function commit(delta=1){ const s=draft().slots[cur]; s.strokes=Math.max(0,s.strokes+delta); s.img=canvasToImg(pad); saveDraft(); renderSlots(); }
+// Liñas, rectángulos e círculos: se case é un cadrado/círculo ou unha liña recta, axústase só
+function drawShape(a,b){
+  let w=b[0]-a[0], h=b[1]-a[1];
+  pctx.globalCompositeOperation='source-over'; pctx.strokeStyle=color; pctx.lineWidth=size; pctx.beginPath();
+  if(tool==='line'){
+    const L=Math.hypot(w,h), ang=Math.atan2(h,w), st=Math.PI/4, sn=Math.round(ang/st)*st;
+    const g=Math.abs(ang-sn)<0.12?sn:ang; pctx.moveTo(a[0],a[1]); pctx.lineTo(a[0]+L*Math.cos(g),a[1]+L*Math.sin(g));
+  } else {
+    const m=Math.max(Math.abs(w),Math.abs(h));
+    if(Math.abs(Math.abs(w)-Math.abs(h))<0.15*m){ w=Math.sign(w||1)*m; h=Math.sign(h||1)*m; }
+    if(tool==='rect') pctx.rect(a[0],a[1],w,h);
+    else pctx.ellipse(a[0]+w/2,a[1]+h/2,Math.abs(w)/2,Math.abs(h)/2,0,0,Math.PI*2);
+  }
+  pctx.stroke();
+}
 function bindPad(){
-  const pos=e=>{const r=pad.getBoundingClientRect();return [(e.clientX-r.left)*256/r.width,(e.clientY-r.top)*256/r.height];};
+  const wrap=pad.parentElement, pts=new Map();
+  let mode=null, snap=null, start=null, curP=null, target=null, g=null;
+  const toCanvas=e=>{ const r=pad.getBoundingClientRect(); return [(e.clientX-r.left)*256/r.width,(e.clientY-r.top)*256/r.height]; };
+  const local=e=>{ const r=wrap.getBoundingClientRect(); return [e.clientX-r.left-wrap.clientLeft,e.clientY-r.top-wrap.clientTop]; };
+  const seg=()=>{ pctx.beginPath(); pctx.moveTo(last[0],last[1]); pctx.lineTo(curP[0],curP[1]); pctx.stroke(); last=curP.slice(); };
+  const cancelStroke=()=>{ if(mode==='draw'||mode==='shape'){ pctx.globalCompositeOperation='source-over'; if(undo.length) pctx.putImageData(undo.pop(),0,0); } };
   pad.onpointerdown=e=>{
-    e.preventDefault(); pad.setPointerCapture(e.pointerId);
+    e.preventDefault(); pts.set(e.pointerId,local(e));
+    if(pts.size===2){ // dous dedos: zoom e desprazamento, nunca pintar
+      cancelStroke(); mode='gesture'; const [a,b]=[...pts.values()];
+      g={d:Math.hypot(a[0]-b[0],a[1]-b[1])||1,m:[(a[0]+b[0])/2,(a[1]+b[1])/2],s:zoom.s,x:zoom.x,y:zoom.y}; return; }
+    if(pts.size>2||mode==='gesture') return;
+    pad.setPointerCapture(e.pointerId);
     undo.push(pctx.getImageData(0,0,256,256)); if(undo.length>25) undo.shift();
-    const [x,y]=pos(e);
-    if(tool==='fill'){ flood(Math.max(0,Math.min(255,Math.floor(x))),Math.max(0,Math.min(255,Math.floor(y))),color); commit(); return; }
-    drawing=true; last=[x,y];
+    const p=toCanvas(e);
+    if(tool==='fill'){ flood(Math.max(0,Math.min(255,Math.floor(p[0]))),Math.max(0,Math.min(255,Math.floor(p[1]))),color); commit(); return; }
+    if(tool==='line'||tool==='rect'||tool==='ellipse'){ mode='shape'; snap=undo[undo.length-1]; start=p; return; }
+    mode='draw'; curP=p.slice(); last=p.slice(); target=p;
     pctx.globalCompositeOperation=tool==='eraser'?'destination-out':'source-over';
     pctx.strokeStyle=tool==='eraser'?'#000':color; pctx.lineWidth=size;
-    pctx.beginPath(); pctx.moveTo(x,y); pctx.lineTo(x+.01,y); pctx.stroke();
+    pctx.beginPath(); pctx.moveTo(p[0],p[1]); pctx.lineTo(p[0]+.01,p[1]); pctx.stroke();
   };
-  pad.onpointermove=e=>{ if(!drawing) return; const [x,y]=pos(e);
-    pctx.beginPath(); pctx.moveTo(last[0],last[1]); pctx.lineTo(x,y); pctx.stroke(); last=[x,y]; };
-  const end=()=>{ if(drawing){ drawing=false; pctx.globalCompositeOperation='source-over'; commit(); } };
-  pad.onpointerup=end; pad.onpointercancel=end;
+  pad.onpointermove=e=>{
+    if(pts.has(e.pointerId)) pts.set(e.pointerId,local(e));
+    if(mode==='gesture'){
+      if(pts.size<2) return; const [a,b]=[...pts.values()];
+      const d=Math.hypot(a[0]-b[0],a[1]-b[1]), m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      const ns=Math.min(6,Math.max(1,g.s*d/g.d)), cx=(g.m[0]-g.x)/g.s, cy=(g.m[1]-g.y)/g.s;
+      zoom={s:ns,x:m[0]-cx*ns,y:m[1]-cy*ns}; applyZoom(); return;
+    }
+    if(mode==='draw'){
+      // suavizado: o pincel segue o dedo "con goma", así as curvas saen limpas
+      const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];
+      for(const ev of (evs.length?evs:[e])){
+        target=toCanvas(ev); const k=smooth?0.3:1;
+        curP[0]+=(target[0]-curP[0])*k; curP[1]+=(target[1]-curP[1])*k; seg();
+      }
+      return;
+    }
+    if(mode==='shape'){ pctx.putImageData(snap,0,0); drawShape(start,toCanvas(e)); }
+  };
+  const end=e=>{
+    pts.delete(e.pointerId);
+    if(mode==='draw'){
+      if(smooth&&target){ for(let i=0;i<12;i++){ curP[0]+=(target[0]-curP[0])*.35; curP[1]+=(target[1]-curP[1])*.35; seg(); } }
+      pctx.globalCompositeOperation='source-over'; mode=null; commit();
+    } else if(mode==='shape'){ mode=null; commit(); }
+    else if(mode==='gesture' && !pts.size) mode=null;
+  };
+  pad.onpointerup=end; pad.onpointercancel=end; pad.onlostpointercapture=end;
+  // no ordenador: roda do rato para facer zoom
+  pad.onwheel=e=>{ e.preventDefault(); const [mx,my]=local(e), ns=Math.min(6,Math.max(1,zoom.s*(e.deltaY<0?1.15:1/1.15)));
+    const cx=(mx-zoom.x)/zoom.s, cy=(my-zoom.y)/zoom.s; zoom={s:ns,x:mx-cx*ns,y:my-cy*ns}; applyZoom(); };
 }
 // Recheo que non deixa ocos: enche a zona e despois pinta 2 px "por debaixo" do contorno
 function flood(x,y,hex){
@@ -346,7 +486,7 @@ async function submitDrawings(){
     ME=await api.submit(D.slots.map(s=>({name:s.name.trim().slice(0,40),value:+s.price,img:s.img})));
     POOL=await api.pool();
     DRAFT=null; try{localStorage.removeItem(DKEY);}catch(e){} cur=0;
-    toast(!was&&ME.started?t('tStarted'):t('tSubmitted')); go('machine');
+    sfx('coin'); toast(!was&&ME.started?t('tStarted'):t('tSubmitted')); go('machine');
   }catch(e){ btn.disabled=false; errToast(e); refresh(); }
 }
 
@@ -354,7 +494,12 @@ async function submitDrawings(){
 function askName(){
   openModal(`<h3>${t('nameT')}</h3><p class="sub">${t('nameB')}</p>
     <label class="f">${t('nameL')}<input id="nameIn" maxlength="20" placeholder="${esc(t('namePh'))}"></label>
-    <div class="stack"><button class="btn primary" id="nameOk">${t('nameGo')}</button></div>`,true);
+    <div class="stack"><button class="btn primary" id="nameOk">${t('nameGo')}</button>
+    ${api.online?`<details class="hasCode"><summary>${t('codeT')}</summary>
+      <label class="f"><input id="codeIn0" placeholder="${esc(t('codePh'))}" autocomplete="off"></label>
+      <button class="btn" id="useCode0">${t('useCode')}</button></details>`:''}</div>`,true);
+  if(api.online) $('useCode0').onclick=async()=>{ const c=$('codeIn0').value.trim(); if(!c) return;
+    try{ ME=await api.useCode(c); POOL=await api.pool(); closeModal(); toast(t('codeOk')); render(); showNews(); }catch(e){ errToast(e); } };
   $('nameOk').onclick=async()=>{
     const v=$('nameIn').value.trim(); if(!v) return toast(t('nameNeed'));
     $('nameOk').disabled=true;
@@ -365,24 +510,66 @@ function askName(){
 
 /* =================== INVENTARIO =================== */
 function cardHTML(it){
-  return `<div class="card ${it.mine?'mine':''}"><img src="${imgSrc(it.img)}" alt="${esc(it.name)}" loading="lazy" decoding="async"><div class="n">${esc(it.name)}</div>
-    <div class="p">${yen(it.value)}</div><div class="a">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</div>
-    <button class="btn small" data-rel="${it.id}">${t('release')}</button></div>`;
+  return `<button class="card ${it.mine?'mine':''}" data-id="${it.id}"><img src="${imgSrc(it.img)}" alt="${esc(it.name)}" loading="lazy" decoding="async"><div class="n">${esc(it.name)}</div>
+    <div class="p">${yen(it.value)}</div><div class="a">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</div></button>`;
 }
-function renderInv(){
+let invTab='inv', ALBUM=null;
+async function renderInv(){
   const v=$('v-inv'), cap=ME.capacity, n=ME.inventory.length, s=ME.streak, nx=7-(s%7);
   const total=ME.inventory.reduce((a,i)=>a+i.value,0);
-  v.innerHTML=`<div class="invhead"><div><h2 style="margin:0">${t('invT')}</h2><span class="sub">${t('invSlots',{n,c:cap})}</span></div>
+  const tabs=`<div class="seg"><button data-tab="inv" class="${invTab==='inv'?'on':''}">${t('tabInv')}</button><button data-tab="album" class="${invTab==='album'?'on':''}">${t('tabAlbum')}</button></div>`;
+  if(invTab==='album'){
+    v.innerHTML=tabs+`<p class="sub">${t('albumB')}</p><div id="albumGrid"></div>`;
+    bindTabs(v);
+    try{ ALBUM=await api.album(); }catch(e){ errToast(e); return; }
+    if(view!=='inv'||invTab!=='album') return;
+    $('albumGrid').innerHTML=ALBUM.length?`<div class="grid">${ALBUM.map(cardHTML).join('')}</div>`:`<div class="emptybox"><b>${t('albumEmpty')}</b></div>`;
+    $('albumGrid').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>itemSheet(ALBUM.find(x=>x.id===b.dataset.id),false));
+    return;
+  }
+  v.innerHTML=tabs+`<div class="invhead"><div><h2 style="margin:0">${t('invT')}</h2><span class="sub">${t('invSlots',{n,c:cap})}</span></div>
     <div style="text-align:right"><div class="total">${yen(total)}</div><span class="sub">${t('invTotal')}</span></div></div>
     <div class="cap"><span style="width:${Math.min(100,n/cap*100)}%"></span></div>
     <p class="sub">${t('invGrow')} ${s?(nx===1?t('invNext1'):t('invNextN',{n:nx})):t('invNoStreak')}</p>
+    ${(ME.hearts||ME.laughs)?`<p class="sub"><b>${t('reactions',{h:ME.hearts||0,l:ME.laughs||0})}</b></p>`:''}
     ${n?`<div class="grid">${ME.inventory.map(cardHTML).join('')}</div>`:
       `<div class="emptybox"><b>${t('invEmptyT')}</b><p class="sub" style="margin:6px 0 12px">${t('invEmptyB')}</p><button class="btn primary" onclick="go('machine')">${t('goMachine')}</button></div>`}`;
-  v.querySelectorAll('[data-rel]').forEach(b=>b.onclick=async()=>{
-    if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent=t('sure'); return; }
-    const it=ME.inventory.find(x=>x.id===b.dataset.rel);
-    try{ ME=await api.release(it.id); POOL=await api.pool(); toast(t('tReturned',{n:it.name})); render(); }catch(e){ errToast(e); }
-  });
+  bindTabs(v);
+  v.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>itemSheet(ME.inventory.find(x=>x.id===b.dataset.id),true));
+}
+function bindTabs(v){ v.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ invTab=b.dataset.tab; renderInv(); }); }
+// ficha dun obxecto: compartir, regalar, devolver e denunciar
+function itemSheet(it,owned){
+  if(!it) return;
+  openModal(`<div class="sheetitem"><img src="${imgSrc(it.img)}" alt=""><h3>${esc(it.name)}</h3>
+    <div class="tprice">${yen(it.value)}</div><p class="sub">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</p></div>
+    <div class="stack"><button class="btn" id="isShare">${t('share')}</button>
+    ${owned?`<button class="btn" id="isGift">${t('gift')}</button><button class="btn" id="isRel">${t('release')}</button>
+    ${it.mine?'':`<button class="linkbtn" id="isRep">${t('report')}</button>`}`:''}
+    <button class="btn" id="isClose">${t('close')}</button></div>`);
+  $('isClose').onclick=closeModal; $('isShare').onclick=()=>shareItem(it);
+  if(!owned) return;
+  $('isRel').onclick=async e=>{ if(!e.target.dataset.sure){ e.target.dataset.sure='1'; e.target.textContent=t('sure'); return; }
+    try{ ME=await api.release(it.id); POOL=await api.pool(); closeModal(); toast(t('tReturned',{n:it.name})); render(); }catch(err){ errToast(err); } };
+  if($('isRep')) $('isRep').onclick=async e=>{ if(!e.target.dataset.sure){ e.target.dataset.sure='1'; e.target.textContent=t('reportSure'); return; }
+    try{ ME=await api.report(it.id); POOL=await api.pool(); closeModal(); toast(t('reportedInv')); render(); }catch(err){ errToast(err); } };
+  $('isGift').onclick=()=>giftSheet(it);
+}
+function giftSheet(it){
+  openModal(`<h3>${t('giftT')}</h3><p class="sub">«${esc(it.name)}» · ${yen(it.value)}</p>
+    <label class="f"><input id="giftQ" maxlength="20" placeholder="${esc(t('giftPh'))}" autocomplete="off"></label>
+    <div class="rowlist" id="giftList"></div><div class="stack"><button class="btn" id="giftClose">${t('close')}</button></div>`);
+  $('giftClose').onclick=closeModal;
+  let tm;
+  $('giftQ').oninput=e=>{ clearTimeout(tm); const q=e.target.value.trim(); if(!q){ $('giftList').innerHTML=''; return; }
+    tm=setTimeout(async()=>{
+      let list=[]; try{ list=await api.find(q); }catch(err){ return errToast(err); }
+      $('giftList').innerHTML=list.length?list.map(p=>`<button class="btn" data-to="${p.id}" data-n="${esc(p.name)}">${esc(p.name)}</button>`).join(''):`<p class="sub">${t('giftNone')}</p>`;
+      $('giftList').querySelectorAll('[data-to]').forEach(b=>b.onclick=async()=>{
+        try{ ME=await api.gift(it.id,b.dataset.to); closeModal(); toast(t('giftDone',{item:it.name,who:b.dataset.n})); render(); }catch(err){ errToast(err); }
+      });
+    },300); };
+  setTimeout(()=>$('giftQ').focus(),50);
 }
 
 /* =================== RANKING =================== */
@@ -409,6 +596,13 @@ $('setBtn').onclick=()=>{
     <label class="f">${t('nameL')}<input id="setName" maxlength="20" value="${esc(ME.name)}"></label>
     <div class="stack">
       <button class="btn" id="saveName">${t('setSave')}</button>
+      <h3 style="margin-top:10px">${t('sndT')}</h3>
+      <div class="toggles"><button class="btn small ${SND.fx?'go':''}" id="fxBtn">${t('sfxL')}: ${SND.fx?t('on'):t('off')}</button>
+        <button class="btn small ${SND.music?'go':''}" id="musBtn">${t('musicL')}: ${SND.music?t('on'):t('off')}</button></div>
+      ${api.online?`<h3 style="margin-top:10px">${t('codeT')}</h3><p class="sub" style="margin:0">${t('codeB')}</p>
+        <div class="code"><code id="myCode">${esc(api.getCode()||'')}</code><button class="btn small" id="copyCode">${t('copy')}</button></div>
+        <label class="f"><input id="codeIn" placeholder="${esc(t('codePh'))}" autocomplete="off"></label>
+        <button class="btn" id="useCode">${t('useCode')}</button>`:''}
       ${api.online?'':`<p class="sub" style="margin:6px 0 0">${t('testB')}</p>
       <button class="btn go" id="nextDay">${t('nextDay')}</button>
       <button class="btn" id="simPeople">${t('sim')}</button>
@@ -416,13 +610,23 @@ $('setBtn').onclick=()=>{
       <button class="btn" id="closeSet">${t('close')}</button>
     </div>`);
   $('closeSet').onclick=closeModal;
+  const tog=(k,btn,label)=>{ SND[k]=!SND[k]; try{localStorage.setItem('gachapaint.'+k,SND[k]?'1':'0');}catch(e){}
+    btn.classList.toggle('go',SND[k]); btn.textContent=`${t(label)}: ${SND[k]?t('on'):t('off')}`; if(k==='music') startMusic(); };
+  $('fxBtn').onclick=e=>tog('fx',e.target,'sfxL');
+  $('musBtn').onclick=e=>tog('music',e.target,'musicL');
+  if(api.online){
+    $('copyCode').onclick=async()=>{ try{ await navigator.clipboard.writeText(api.getCode()); toast(t('copied')); }
+      catch(e){ const r=document.createRange(); r.selectNodeContents($('myCode')); const sl=getSelection(); sl.removeAllRanges(); sl.addRange(r); } };
+    $('useCode').onclick=async()=>{ const c=$('codeIn').value.trim(); if(!c) return;
+      try{ ME=await api.useCode(c); POOL=await api.pool(); closeModal(); PH.balls=[]; toast(t('codeOk')); render(); }catch(e){ errToast(e); } };
+  }
   $('saveName').onclick=async()=>{ const v=$('setName').value.trim(); if(!v) return toast(t('nameNeed'));
     try{ ME=await api.rename(v); toast(t('setSaved')); render(); }catch(e){ errToast(e); } };
   if(api.online) return;
   $('nextDay').onclick=async()=>{ ME=await api.nextDay(); POOL=await api.pool(); closeModal(); render();
-    toast(ME.streak?t('dayStreak',{n:ME.streak===1?t('days1'):t('daysN',{n:ME.streak})}):t('dayNoStreak')); };
+    toast(ME.streak?t('dayStreak',{n:ME.streak===1?t('days1'):t('daysN',{n:ME.streak})}):t('dayNoStreak')); showNews(); };
   $('simPeople').onclick=async()=>{ const was=ME.started; ME=await api.simulate(); POOL=await api.pool(); closeModal(); render();
-    toast(!was&&ME.started?t('tStarted'):t('simDone')); };
+    toast(!was&&ME.started?t('tStarted'):t('simDone')); showNews(); };
   $('resetBtn').onclick=async e=>{
     if(!e.target.dataset.sure){ e.target.dataset.sure='1'; e.target.textContent=t('sure'); return; }
     await api.reset(); PH.balls=[]; DRAFT=null; try{localStorage.removeItem(DKEY);}catch(_){}
