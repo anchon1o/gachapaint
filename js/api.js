@@ -64,6 +64,7 @@ const RemoteAPI = (()=>{
     album:()=>rpc('gch_album',{p_secret:secret}),
     find:q=>rpc('gch_find',{p_secret:secret,p_q:q}),
     gift:(id,to)=>rpc('gch_gift',{p_secret:secret,p_item:id,p_to:to}),
+    gallery:(sort,mine,offset)=>rpc('gch_gallery',{p_secret:secret,p_sort:sort,p_mine:!!mine,p_offset:offset||0}),
     // código de xogador para recuperar a partida noutro dispositivo
     getCode:()=>secret,
     async useCode(code){
@@ -197,6 +198,12 @@ const LocalAPI = (()=>{
     album:wrap(()=>[...S.album].reverse().filter(id=>S.items[id]&&!S.items[id].hidden).map(itemOut)),
     find:wrap(q=>{ q=String(q).trim().toLowerCase(); return BOTS.filter(n=>n.toLowerCase().startsWith(q)).map(n=>({id:'bot:'+n,name:n})); }),
     gift:wrap((id,to)=>{ if(!S.inv.includes(id)) throw apiError('bad_item'); S.inv=S.inv.filter(x=>x!==id); save(); return me(); }),
+    gallery:wrap((sort,mine,offset)=>{
+      let L=Object.values(S.items).filter(i=>!i.hidden&&(!mine||i.mine));
+      L=sort==='price'?L.sort((a,b)=>b.value-a.value):L.reverse();
+      return L.slice(offset||0,(offset||0)+60).map(i=>({...itemOut(i.id),in_pool:S.pool.includes(i.id),
+        owner:S.inv.includes(i.id)?S.name:null}));
+    }),
     getCode:()=>null,
     useCode:()=>Promise.reject(apiError('bad_code')),
     // só no modo proba

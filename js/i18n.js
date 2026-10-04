@@ -1,6 +1,8 @@
 // Textos do xogo nos catro idiomas. As chaves {x} substitúense.
 const I18N = {
 gl:{
+  navGal:'Galería', galT:'Galería', galB:'Toda a obra de Gachapaint, debuxo a debuxo.', galNew:'Recentes', galPrice:'Máis caros', galMine:'Só os meus', galMore:'Cargar máis', galEmpty:'Aínda non hai debuxos.', inPool:'Está dentro da máquina', ownedBy:'Agora tena {o}',
+  manualT:'Manual de ferramentas', hPen:'Debuxo a man alzada.', hLine:'Arrastra para facer unha liña. Se case é horizontal, vertical ou en diagonal, endereitase soa.', hRect:'Arrastra para facer un rectángulo. Se case é un cadrado, queda cadrado perfecto.', hCircle:'Arrastra para facer un círculo ou unha elipse. Se case é un círculo, queda redondo.', hFill:'Toca dentro dunha zona pechada para enchela de cor.', hEraser:'Borra o que tocas.', hUndo:'Desfai o último paso.', hSize:'Grosor do trazo.', hSmooth:'Suavizar: o trazo segue o dedo «con goma» e as curvas saen limpas. Tócao para activalo ou apagalo.', hZoom:'Volve ao tamaño normal. Con dous dedos podes facer zoom e moverte polo debuxo.', hClear:'Borra todo o lenzo deste obxecto.',
   eNetPull:'Fallou a conexión. Non se gastou a tirada.', eBadCode:'Ese código non existe', eTanda:'Xa metiches as 5 quendas de hoxe. Mañá máis!', eFullTarget:'O inventario desa persoa está cheo',
   tandaLeft:'Mentres se enche a máquina podes meter ata 5 quendas ao día. Quédanche {n}.',
   newsT:'Novidades', newsTook:'{who} levou o teu «{item}»', newsGift:'{who} regalouche «{item}»', ok:'Vale',
@@ -51,6 +53,8 @@ gl:{
   seeds:['Coroa de ouro','Calcetín sen parella','Pedra con ollos','Torta de aniversario','Paraugas roto','Estrela fugaz','Plátano pocho','Cunca de café','Espiña de peixe'],
 },
 es:{
+  navGal:'Galería', galT:'Galería', galB:'Toda la obra de Gachapaint, dibujo a dibujo.', galNew:'Recientes', galPrice:'Más caros', galMine:'Solo los míos', galMore:'Cargar más', galEmpty:'Aún no hay dibujos.', inPool:'Está dentro de la máquina', ownedBy:'Ahora lo tiene {o}',
+  manualT:'Manual de herramientas', hPen:'Dibujo a mano alzada.', hLine:'Arrastra para hacer una línea. Si es casi horizontal, vertical o en diagonal, se endereza sola.', hRect:'Arrastra para hacer un rectángulo. Si es casi un cuadrado, queda cuadrado perfecto.', hCircle:'Arrastra para hacer un círculo o una elipse. Si es casi un círculo, queda redondo.', hFill:'Toca dentro de una zona cerrada para rellenarla de color.', hEraser:'Borra lo que tocas.', hUndo:'Deshace el último paso.', hSize:'Grosor del trazo.', hSmooth:'Suavizar: el trazo sigue al dedo «con goma» y las curvas salen limpias. Tócalo para activarlo o apagarlo.', hZoom:'Vuelve al tamaño normal. Con dos dedos puedes hacer zoom y moverte por el dibujo.', hClear:'Borra todo el lienzo de este objeto.',
   eNetPull:'Falló la conexión. No se ha gastado la tirada.', eBadCode:'Ese código no existe', eTanda:'Ya has metido las 5 tandas de hoy. ¡Mañana más!', eFullTarget:'El inventario de esa persona está lleno',
   tandaLeft:'Mientras se llena la máquina puedes meter hasta 5 tandas al día. Te quedan {n}.',
   newsT:'Novedades', newsTook:'{who} se ha llevado tu «{item}»', newsGift:'{who} te ha regalado «{item}»', ok:'Vale',
@@ -101,6 +105,8 @@ es:{
   seeds:['Corona de oro','Calcetín sin pareja','Piedra con ojos','Tarta de cumpleaños','Paraguas roto','Estrella fugaz','Plátano pocho','Taza de café','Raspa de pescado'],
 },
 ca:{
+  navGal:'Galeria', galT:'Galeria', galB:'Tota l\'obra de Gachapaint, dibuix a dibuix.', galNew:'Recents', galPrice:'Més cars', galMine:'Només els meus', galMore:'Carregar-ne més', galEmpty:'Encara no hi ha dibuixos.', inPool:'És dins de la màquina', ownedBy:'Ara el té {o}',
+  manualT:'Manual d\'eines', hPen:'Dibuix a mà alçada.', hLine:'Arrossega per fer una línia. Si és gairebé horitzontal, vertical o en diagonal, es redreça sola.', hRect:'Arrossega per fer un rectangle. Si és gairebé un quadrat, queda quadrat perfecte.', hCircle:'Arrossega per fer un cercle o una el·lipse. Si és gairebé un cercle, queda rodó.', hFill:'Toca dins d\'una zona tancada per omplir-la de color.', hEraser:'Esborra el que toques.', hUndo:'Desfà l\'últim pas.', hSize:'Gruix del traç.', hSmooth:'Suavitzar: el traç segueix el dit «amb goma» i les corbes surten netes. Toca-ho per activar-ho o apagar-ho.', hZoom:'Torna a la mida normal. Amb dos dits pots fer zoom i moure\'t pel dibuix.', hClear:'Esborra tot el llenç d\'aquest objecte.',
   eNetPull:'Ha fallat la connexió. No s\'ha gastat la tirada.', eBadCode:'Aquest codi no existeix', eTanda:'Ja has posat les 5 tandes d\'avui. Demà més!', eFullTarget:'L\'inventari d\'aquesta persona és ple',
   tandaLeft:'Mentre s\'omple la màquina pots posar fins a 5 tandes al dia. Te\'n queden {n}.',
   newsT:'Novetats', newsTook:'{who} s\'ha endut el teu «{item}»', newsGift:'{who} t\'ha regalat «{item}»', ok:'D\'acord',
@@ -151,6 +157,8 @@ ca:{
   seeds:['Corona d\'or','Mitjó sense parella','Pedra amb ulls','Pastís d\'aniversari','Paraigua trencat','Estel fugaç','Plàtan passat','Tassa de cafè','Espina de peix'],
 },
 eu:{
+  navGal:'Galeria', galT:'Galeria', galB:'Gachapaint-en lan guztia, marrazkiz marrazki.', galNew:'Berrienak', galPrice:'Garestienak', galMine:'Nireak bakarrik', galMore:'Kargatu gehiago', galEmpty:'Oraindik ez dago marrazkirik.', inPool:'Makinaren barruan dago', ownedBy:'Orain {o}(e)k du',
+  manualT:'Tresnen eskuliburua', hPen:'Eskuz marraztu.', hLine:'Arrastatu lerro bat egiteko. Ia horizontala, bertikala edo diagonala bada, berez zuzentzen da.', hRect:'Arrastatu laukizuzen bat egiteko. Ia karratua bada, karratu perfektua geratzen da.', hCircle:'Arrastatu zirkulu edo elipse bat egiteko. Ia zirkulua bada, biribila geratzen da.', hFill:'Ukitu eremu itxi baten barruan kolorez betetzeko.', hEraser:'Ukitzen duzuna ezabatzen du.', hUndo:'Azken urratsa desegiten du.', hSize:'Trazuaren lodiera.', hSmooth:'Leundu: trazuak hatza «gomaz bezala» jarraitzen du eta kurbak garbi ateratzen dira. Ukitu aktibatzeko edo itzaltzeko.', hZoom:'Tamaina normalera itzultzen da. Bi hatzekin zooma egin eta marrazkian mugi zaitezke.', hClear:'Objektu honen oihal osoa ezabatzen du.',
   eNetPull:'Konexioak huts egin du. Ez da tirada gastatu.', eBadCode:'Kode hori ez dago', eTanda:'Gaurko 5 txandak sartu dituzu. Bihar gehiago!', eFullTarget:'Pertsona horren inbentarioa beteta dago',
   tandaLeft:'Makina betetzen den bitartean egunean 5 txanda arte sar ditzakezu. {n} geratzen zaizkizu.',
   newsT:'Berriak', newsTook:'{who}(e)k zure «{item}» eraman du', newsGift:'{who}(e)k «{item}» oparitu dizu', ok:'Ados',

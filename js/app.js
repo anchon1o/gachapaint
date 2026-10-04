@@ -93,6 +93,7 @@ function render(){
   if(view==='draw') renderDraw();
   if(view==='inv') renderInv();
   if(view==='rank') renderRank();
+  if(view==='gal') renderGal();
 }
 async function refresh(){
   try{ const [m,p]=await Promise.all([api.me(),api.pool()]); const was=ME&&ME.started; ME=m; POOL=p;
@@ -314,7 +315,7 @@ function renderDraw(){
   const v=$('v-draw');
   if(!canDraw()){ v.innerHTML=`<h2>${t('doneT')}</h2><p class="sub">${ME.started?t('doneB'):t('eTanda')}</p><button class="btn primary" onclick="go('machine')">${t('goMachine')}</button>`; return; }
   const b=ME.budget, ns=ME.next_streak;
-  v.innerHTML=`<div class="drawhead"><h2>${t('drawT')}</h2><span class="budgettag">${yen(b)}</span></div>
+  v.innerHTML=`<div class="drawhead"><h2>${t('drawT')}</h2><span class="budgettag">${yen(b)}</span><button class="helpbtn" id="helpBtn" aria-label="${esc(t('manualT'))}">?</button></div>
     <p class="theme">${t('themeT',{t:esc(weekTheme())})}</p>
     <div class="slots" id="slots"></div>
     <div class="padwrap"><canvas id="pad" width="256" height="256" aria-label="${t('aPad')}"></canvas></div>
@@ -326,7 +327,7 @@ function renderDraw(){
     </div>
     <div class="meter"><div class="mtext" id="mText"></div><div class="bar" id="bar"></div><div id="mSub" style="font-size:13px;color:var(--muted)"></div></div>
     <div class="submit"><button class="btn primary" id="submitBtn">${t('submit')}</button></div>
-    <div class="drawinfo"><p class="sub">${t('drawB',{b:yen(b)})}</p><p class="sub">${t('zoomHint')}</p>
+    <div class="drawinfo"><p class="sub">${t('drawB',{b:yen(b)})}</p>
     ${b>100?`<div class="banner">${t('streakBanner',{n:ns,b:yen(b)})}</div>`:''}
     ${!ME.started?`<div class="banner">${t('fillBanner',{n:POOL.items.length,g:ME.goal})} ${ME.tandas_left!=null?t('tandaLeft',{n:ME.tandas_left}):''}</div>`:''}</div>`;
   pad=$('pad'); pctx=pad.getContext('2d',{willReadFrequently:true}); pctx.lineCap='round'; pctx.lineJoin='round';
@@ -347,6 +348,8 @@ function renderDraw(){
   $('smoothBtn').onclick=()=>{ smooth=!smooth; try{localStorage.setItem('gachapaint.smooth',smooth?'1':'0');}catch(e){}
     $('smoothBtn').classList.toggle('on',smooth); $('smoothBtn').setAttribute('aria-pressed',smooth); };
   $('zoomBtn').onclick=()=>{ zoom={s:1,x:0,y:0}; applyZoom(); };
+  T.querySelectorAll('.tool').forEach(x=>x.title=x.getAttribute('aria-label')||'');
+  $('helpBtn').onclick=toolManual;
   $('undoBtn').onclick=()=>{ if(!undo.length) return; pctx.putImageData(undo.pop(),0,0); commit(-1); };
   $('clearBtn').onclick=()=>{ undo.push(pctx.getImageData(0,0,256,256)); pctx.clearRect(0,0,256,256); const s=draft().slots[cur]; s.strokes=0; s.img=null; saveDraft(); renderSlots(); };
   $('palette').innerHTML=PALETTE.map(c=>`<button class="sw ${c===color?'on':''}" style="background:${c}" data-c="${c}" aria-label="${t('aColor',{n:c})}"></button>`).join('');
@@ -490,6 +493,14 @@ async function submitDrawings(){
   }catch(e){ btn.disabled=false; errToast(e); refresh(); }
 }
 
+function toolManual(){
+  const rows=[['pen','hPen'],['line','hLine'],['rect','hRect'],['ellipse','hCircle'],['fill','hFill'],['eraser','hEraser'],
+    ['undo','hUndo'],[null,'hSize'],['smooth','hSmooth'],['zoom','hZoom'],['clear','hClear']];
+  openModal(`<h3>${t('manualT')}</h3><div class="manual">${rows.map(([ic,k])=>`<div class="mrow">${ic?`<img src="${ICONS[ic]}" alt="">`:'<span class="mdots"><i></i><i></i><i></i></span>'}<p>${t(k)}</p></div>`).join('')}</div>
+    <div class="stack"><button class="btn primary" id="manOk">${t('ok')}</button></div>`);
+  $('manOk').onclick=closeModal;
+}
+
 /* =================== NOME =================== */
 function askName(){
   openModal(`<h3>${t('nameT')}</h3><p class="sub">${t('nameB')}</p>
@@ -542,7 +553,8 @@ function bindTabs(v){ v.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>
 function itemSheet(it,owned){
   if(!it) return;
   openModal(`<div class="sheetitem"><img src="${imgSrc(it.img)}" alt=""><h3>${esc(it.name)}</h3>
-    <div class="tprice">${yen(it.value)}</div><p class="sub">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</p></div>
+    <div class="tprice">${yen(it.value)}</div><p class="sub">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</p>
+    ${it.in_pool?`<p class="status-chip">${t('inPool')}</p>`:it.owner?`<p class="status-chip">${t('ownedBy',{o:esc(it.owner)})}</p>`:''}</div>
     <div class="stack"><button class="btn" id="isShare">${t('share')}</button>
     ${owned?`<button class="btn" id="isGift">${t('gift')}</button><button class="btn" id="isRel">${t('release')}</button>
     ${it.mine?'':`<button class="linkbtn" id="isRep">${t('report')}</button>`}`:''}
@@ -570,6 +582,32 @@ function giftSheet(it){
       });
     },300); };
   setTimeout(()=>$('giftQ').focus(),50);
+}
+
+/* =================== GALERÍA =================== */
+let galSort='new', galMine=false, GAL=[], galDone=false, galLoading=false;
+async function renderGal(reset=true){
+  const v=$('v-gal');
+  if(reset){ GAL=[]; galDone=false;
+    v.innerHTML=`<h2>${t('galT')}</h2><p class="sub">${t('galB')}</p>
+      <div class="seg"><button data-gs="new" class="${galSort==='new'?'on':''}">${t('galNew')}</button><button data-gs="price" class="${galSort==='price'?'on':''}">${t('galPrice')}</button></div>
+      <label class="minechk"><input type="checkbox" id="galMine" ${galMine?'checked':''}> ${t('galMine')}</label>
+      <div class="gallery" id="galGrid"></div><div class="submit"><button class="btn" id="galMore" hidden>${t('galMore')}</button></div>`;
+    v.querySelectorAll('[data-gs]').forEach(b=>b.onclick=()=>{ galSort=b.dataset.gs; renderGal(); });
+    $('galMine').onchange=e=>{ galMine=e.target.checked; renderGal(); };
+    $('galMore').onclick=()=>renderGal(false);
+  }
+  if(galLoading||galDone) return; galLoading=true;
+  let page=[]; try{ page=await api.gallery(galSort,galMine,GAL.length); }catch(e){ errToast(e); }
+  galLoading=false;
+  if(view!=='gal') return;
+  const start=GAL.length; GAL=GAL.concat(page); galDone=page.length<60;
+  const grid=$('galGrid');
+  if(!GAL.length){ grid.innerHTML=`<div class="emptybox"><b>${t('galEmpty')}</b></div>`; }
+  else grid.insertAdjacentHTML('beforeend',page.map(it=>`<button class="frame" data-id="${it.id}"><span class="canvasbg"><img src="${imgSrc(it.img)}" alt="${esc(it.name)}" loading="lazy" decoding="async"></span>
+    <span class="plaque"><b>${esc(it.name)}</b><span>${esc(it.mine?t('byYou'):it.author)} · ${yen(it.value)}</span></span></button>`).join(''));
+  grid.querySelectorAll('.frame').forEach((b,i)=>{ if(i>=start) b.onclick=()=>itemSheet(GAL.find(x=>x.id===b.dataset.id),false); });
+  $('galMore').hidden=galDone;
 }
 
 /* =================== RANKING =================== */

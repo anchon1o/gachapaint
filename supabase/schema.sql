@@ -347,14 +347,31 @@ begin
   return gch_me_json(p);
 end $$;
 
+-- galería: toda a obra (menos o oculto), por páxinas de 60
+create or replace function gch_gallery(p_secret uuid, p_sort text default 'new', p_mine boolean default false, p_offset int default 0) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p gch_players; r jsonb;
+begin
+  p := gch_player(p_secret);
+  select coalesce(jsonb_agg(x.j order by x.rn), '[]'::jsonb) into r from (
+    select gch_item_json(i, p.id) || jsonb_build_object('owner', o.name, 'in_pool', i.in_pool) as j,
+           row_number() over (order by case when p_sort = 'price' then i.value end desc nulls last, i.created_at desc) as rn
+    from gch_items i left join gch_players o on o.id = i.owner_id and not i.pending
+    where not i.hidden and (not p_mine or i.author_id = p.id)
+    order by rn offset greatest(0, p_offset) limit 60) x;
+  return r;
+end $$;
+
 -- ------------------------- permisos -------------------------
 revoke execute on function gch_player(uuid), gch_item_json(gch_items, uuid), gch_me_json(gch_players)
   from public, anon, authenticated;
 revoke execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
-  gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid)
+  gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
+  gch_gallery(uuid, text, boolean, int)
   from public;
 grant execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
-  gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid)
+  gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
+  gch_gallery(uuid, text, boolean, int)
   to anon, authenticated;
