@@ -378,3 +378,5 @@ nav button span:not(.ic){display:block;max-width:100%;overflow:hidden;text-overf
 .vcount.priv{font-style:italic;font-weight:600;opacity:.8}
 .rule{font-size:13px;margin:-4px 0 10px}
 .frame .plaque .pval{font-family:var(--display);font-weight:900;font-size:13px}
+.code code{font-family:var(--display);font-weight:900;font-size:18px;letter-spacing:2px;text-align:center}
+.code.big code{font-size:26px;padding:14px}

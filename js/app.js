@@ -508,6 +508,7 @@ function centerDrawing(){
   const tmp=document.createElement('canvas'); tmp.width=tmp.height=256; tmp.getContext('2d').drawImage(pad,0,0);
   pctx.clearRect(0,0,256,256); pctx.drawImage(tmp,dx,dy); commit();
 }
+const fmtCode=c=>c?String(c).match(/.{1,3}/g).join('-'):'';
 function toolManual(){
   const rows=[['pen','hPen'],['line','hLine'],['rect','hRect'],['ellipse','hCircle'],['fill','hFill'],['eraser','hEraser'],
     ['undo','hUndo'],['center','hCenter'],[null,'hSize'],['smooth','hSmooth'],['zoom','hZoom'],['clear','hClear']];
@@ -529,7 +530,9 @@ function askName(){
   $('nameOk').onclick=async()=>{
     const v=$('nameIn').value.trim(); if(!v) return toast(t('nameNeed'));
     $('nameOk').disabled=true;
-    try{ ME=await api.join(v); POOL=await api.pool(); closeModal(); render(); }
+    try{ ME=await api.join(v); POOL=await api.pool(); closeModal(); render();
+      if(api.online&&ME.code){ openModal(`<h3>${t('codeT')}</h3><div class="code big"><code>${esc(fmtCode(ME.code))}</code></div><p class="sub">${t('codeB')}</p>
+        <div class="stack"><button class="btn primary" id="codeOk">${t('ok')}</button></div>`); $('codeOk').onclick=closeModal; } }
     catch(e){ $('nameOk').disabled=false; errToast(e); }
   };
 }
@@ -675,7 +678,7 @@ $('setBtn').onclick=()=>{
       <div class="toggles"><button class="btn small ${SND.fx?'go':''}" id="fxBtn">${t('sfxL')}: ${SND.fx?t('on'):t('off')}</button>
         <button class="btn small ${SND.music?'go':''}" id="musBtn">${t('musicL')}: ${SND.music?t('on'):t('off')}</button></div>
       ${api.online?`<h3 style="margin-top:10px">${t('codeT')}</h3><p class="sub" style="margin:0">${t('codeB')}</p>
-        <div class="code"><code id="myCode">${esc(api.getCode()||'')}</code><button class="btn small" id="copyCode">${t('copy')}</button></div>
+        <div class="code"><code id="myCode">${esc(fmtCode(ME.code))}</code><button class="btn small" id="copyCode">${t('copy')}</button></div>
         <label class="f"><input id="codeIn" placeholder="${esc(t('codePh'))}" autocomplete="off"></label>
         <button class="btn" id="useCode">${t('useCode')}</button>`:''}
       ${api.online?'':`<p class="sub" style="margin:6px 0 0">${t('testB')}</p>
@@ -690,7 +693,7 @@ $('setBtn').onclick=()=>{
   $('fxBtn').onclick=e=>tog('fx',e.target,'sfxL');
   $('musBtn').onclick=e=>tog('music',e.target,'musicL');
   if(api.online){
-    $('copyCode').onclick=async()=>{ try{ await navigator.clipboard.writeText(api.getCode()); toast(t('copied')); }
+    $('copyCode').onclick=async()=>{ try{ await navigator.clipboard.writeText(fmtCode(ME.code)); toast(t('copied')); }
       catch(e){ const r=document.createRange(); r.selectNodeContents($('myCode')); const sl=getSelection(); sl.removeAllRanges(); sl.addRange(r); } };
     $('useCode').onclick=async()=>{ const c=$('codeIn').value.trim(); if(!c) return;
       try{ ME=await api.useCode(c); POOL=await api.pool(); closeModal(); PH.balls=[]; toast(t('codeOk')); render(); }catch(e){ errToast(e); } };

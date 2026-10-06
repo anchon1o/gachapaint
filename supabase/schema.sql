@@ -151,7 +151,7 @@ begin
   select count(*) filter (where reaction = 'love'), count(*) filter (where reaction = 'meh') into h, l
     from gch_events where recipient_id = p.id and kind = 'took';
   return jsonb_build_object(
-    'id', p.id, 'name', p.name, 'streak', s, 'next_streak', ns, 'budget', gch_budget(ns),
+    'id', p.id, 'name', p.name, 'code', p.code, 'streak', s, 'next_streak', ns, 'budget', gch_budget(ns),
     'drew_today', drew,
     'pulls_left', case when st.started and drew
                        then greatest(0, 3 - case when p.pulls_day = t then p.pulls else 0 end) else 0 end,
@@ -166,7 +166,7 @@ create or replace function gch_join(p_name text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare p gch_players;
 begin
-  insert into gch_players(name) values (left(btrim(p_name), 20)) returning * into p;
+  insert into gch_players(name, code) values (left(btrim(p_name), 20), gch_new_code()) returning * into p;
   return jsonb_build_object('secret', p.secret, 'me', gch_me_json(p));
 end $$;
 
@@ -444,16 +444,42 @@ begin
   return jsonb_build_object('likes', l, 'dislikes', d, 'my_vote', nullif(p_vote, 0));
 end $$;
 
+-- código curto de xogador (9 letras/números sen confusións: sen 0/O, 1/I/L)
+alter table gch_players add column if not exists code text;
+create unique index if not exists gch_players_code_idx on gch_players(code);
+create or replace function gch_new_code() returns text
+language plpgsql volatile set search_path = public as $$
+declare a text := '23456789ABCDEFGHJKMNPQRSTUVWXYZ'; c text; b bytea;
+begin
+  loop
+    b := uuid_send(gen_random_uuid()); c := '';
+    for k in 0..8 loop c := c || substr(a, (get_byte(b, k) % 31) + 1, 1); end loop;
+    exit when not exists (select 1 from gch_players where code = c);
+  end loop;
+  return c;
+end $$;
+update gch_players set code = gch_new_code() where code is null;
+
+-- recuperar a partida noutro dispositivo co código curto
+create or replace function gch_recover(p_code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p gch_players; c text := upper(regexp_replace(coalesce(p_code, ''), '[^0-9A-Za-z]', '', 'g'));
+begin
+  select * into p from gch_players where code = c;
+  if not found then raise exception 'gch:bad_code'; end if;
+  return jsonb_build_object('secret', p.secret, 'me', gch_me_json(p));
+end $$;
+
 -- ------------------------- permisos -------------------------
-revoke execute on function gch_player(uuid), gch_item_json(gch_items, uuid), gch_me_json(gch_players), gch_settle()
+revoke execute on function gch_player(uuid), gch_item_json(gch_items, uuid), gch_me_json(gch_players), gch_settle(), gch_new_code()
   from public, anon, authenticated;
 revoke execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
   gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
-  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int)
+  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int), gch_recover(text)
   from public;
 grant execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
   gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
-  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int)
+  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int), gch_recover(text)
   to anon, authenticated;
