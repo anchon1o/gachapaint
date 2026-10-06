@@ -1,6 +1,6 @@
 # Gachapaint
 
-Máquina de gachapón onde os premios son debuxos da xente. Cada día debuxas 3 obxectos, repártelles ¥100 (¥500 con 10 días de racha, ¥1000 con 30) e gañas 3 tiradas. A máquina non arranca ata ter 100 obxectos dentro.
+Máquina de gachapón onde os premios son debuxos da xente. Cada día debuxas 3 obxectos, repártelles ¥1000 en pasos de ¥10 (¥5000 con 10 días de racha, ¥10000 con 30) e gañas 3 tiradas. Os autores poden amosar os seus debuxos na galería, onde se votan; cada luns os votos da semana suben ou baixan o seu valor. A máquina non arranca ata ter 100 obxectos dentro.
 
 Idiomas: galego, castelán, catalán e éuscaro (botón da bandeiriña).
 

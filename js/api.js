@@ -8,7 +8,7 @@ const CFG = window.GACHA_CONFIG || {};
 const ONLINE = !!(CFG.SUPABASE_URL && CFG.SUPABASE_KEY);
 
 function apiError(code){ const e=new Error(code); e.code=code; return e; }
-const budgetFor = n => n>0 && n%30===0 ? 1000 : n>0 && n%10===0 ? 500 : 100;
+const budgetFor = n => n>0 && n%30===0 ? 10000 : n>0 && n%10===0 ? 5000 : 1000;
 
 /* ---------------------------- EN LIÑA ---------------------------- */
 const BUCKET='gachapaint';
@@ -65,6 +65,8 @@ const RemoteAPI = (()=>{
     find:q=>rpc('gch_find',{p_secret:secret,p_q:q}),
     gift:(id,to)=>rpc('gch_gift',{p_secret:secret,p_item:id,p_to:to}),
     gallery:(sort,mine,offset)=>rpc('gch_gallery',{p_secret:secret,p_sort:sort,p_mine:!!mine,p_offset:offset||0}),
+    setPublic:(id,on)=>rpc('gch_set_public',{p_secret:secret,p_item:id,p_public:!!on}),
+    vote:(id,v)=>rpc('gch_vote',{p_secret:secret,p_item:id,p_vote:v}),
     // código de xogador para recuperar a partida noutro dispositivo
     getCode:()=>secret,
     async useCode(code){
@@ -77,7 +79,7 @@ const RemoteAPI = (()=>{
 
 /* --------------------------- MODO PROBA --------------------------- */
 const LocalAPI = (()=>{
-  const LS='gachapaint.local.v1';
+  const LS='gachapaint.local.v2';
   let S=null;
   const uid=()=>Math.random().toString(36).slice(2,10);
   const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -107,13 +109,14 @@ const LocalAPI = (()=>{
   function botBatch(){
     if(!artCache.length) artCache=ART.map(art);
     const kinds=[...ART.keys()].sort(()=>Math.random()-.5).slice(0,3), author=BOTS[rnd(0,BOTS.length-1)];
-    const a=rnd(0,100), b=rnd(0,100-a), v=[a,b,100-a-b].sort(()=>Math.random()-.5);
-    kinds.forEach((k,i)=>{ const id=uid(); S.items[id]={id,name:t('seeds')[k],value:v[i],author,img:artCache[k],mine:false}; S.pool.push(id); });
+    const a=rnd(0,100), b=rnd(0,100-a), v=[a,b,100-a-b].map(x=>x*10).sort(()=>Math.random()-.5);
+    kinds.forEach((k,i)=>{ const id=uid(); S.items[id]={id,name:t('seeds')[k],value:v[i],author,img:artCache[k],mine:false,public:Math.random()<.7,created:Date.now()+Math.random()}; S.pool.push(id); });
   }
   function fresh(){
     S={events:[],album:[],tandas:0,tandasDay:null,offset:0,name:'',streak:0,lastDay:null,drewDay:null,pullsDay:null,pulls:0,inv:[],items:{},pool:[],pending:null,seedDay:null,started:false,goal:100,
-       bots:[{n:'Marta',c:18,t:412},{n:'Brais',c:9,t:236},{n:'Uxía',c:20,t:604},{n:'Iago',c:6,t:41},{n:'Noa',c:12,t:150},
-             {n:'Xoán',c:15,t:3},{n:'Antía',c:4,t:3},{n:'Lúa',c:3,t:88},{n:'Pablo',c:11,t:97}]};
+       votes:{}, week:null,
+       bots:[{n:'Marta',c:18,t:4120},{n:'Brais',c:9,t:2360},{n:'Uxía',c:20,t:6040},{n:'Iago',c:6,t:410},{n:'Noa',c:12,t:1500},
+             {n:'Xoán',c:15,t:30},{n:'Antía',c:4,t:30},{n:'Lúa',c:3,t:880},{n:'Pablo',c:11,t:970}]};
     for(let k=0;k<11;k++) botBatch();
   }
   // simulación: os bots levan algúns dos teus debuxos e reaccionan
@@ -124,18 +127,34 @@ const LocalAPI = (()=>{
       S.events.push({id:uid(),kind:'took',who:BOTS[rnd(0,BOTS.length-1)],item:S.items[id].name,reaction:['love','meh',null][rnd(0,2)],seen:false});
     });
   }
+  const weekOf=d=>Math.floor((d+3)/7); // semanas que comezan en luns
+  function botVotes(){
+    Object.values(S.items).filter(i=>i.public&&!i.hidden).forEach(i=>{ if(Math.random()<.3){
+      const v=S.votes[i.id]||(S.votes[i.id]={l:0,d:0,mine:null}); if(Math.random()<.65) v.l++; else v.d++; } });
+  }
+  function settle(){
+    const w=weekOf(today()); if(S.week===null||S.week===undefined){ S.week=w; return; }
+    if(w<=S.week) return;
+    for(const id in S.votes){ const v=S.votes[id], it=S.items[id]; if(!it) continue;
+      const sc=v.l-v.d+(v.mine||0); if(!sc) continue;
+      it.value=Math.max(0,it.value+10*sc);
+      if(it.mine) S.events.push({id:uid(),kind:sc>0?'rise':'fall',who:'',item:it.name,amount:it.value,seen:false}); }
+    S.votes={}; S.week=w;
+  }
   function tick(){
     if(!S){ S=load(); if(!S) fresh(); S.events=S.events||[]; S.album=S.album||[]; }
     const d=today();
     if(S.pullsDay!==d){ S.pullsDay=d; S.pulls=0; }
-    if(S.seedDay!==d){ if(S.seedDay!==null){ botBatch(); botsTakeMine(); } S.seedDay=d; }
+    S.votes=S.votes||{};
+    if(S.seedDay!==d){ if(S.seedDay!==null){ botBatch(); botsTakeMine(); botVotes(); } S.seedDay=d; }
+    settle();
     if(!S.started && S.pool.length>=S.goal) S.started=true;
     save();
   }
   const curStreak=()=>{ const d=today(); return (S.lastDay!==null && S.lastDay>=d-1)?S.streak:0; };
   const nextStreak=()=>{ const d=today(); if(S.lastDay===d) return S.streak; if(S.lastDay===d-1) return S.streak+1; return 1; };
   const capacity=()=>20+Math.floor(curStreak()/7);
-  const itemOut=id=>{ const it=S.items[id]; return {...it,author:it.mine?S.name:it.author}; };
+  const itemOut=id=>{ const it=S.items[id]; return {...it,author:it.mine?S.name:it.author,public:!!it.public}; };
   function me(){
     const d=today(), drew=S.drewDay===d, ns=nextStreak();
     return {id:'me',name:S.name,streak:curStreak(),next_streak:ns,budget:budgetFor(ns),drew_today:drew,
@@ -161,7 +180,8 @@ const LocalAPI = (()=>{
       if(S.started && S.drewDay===d) throw apiError('already_drew');
       if(!S.started && S.tandasDay===d && S.tandas>=5) throw apiError('tanda_limit');
       const sum=items.reduce((a,i)=>a+i.value,0); if(sum!==budgetFor(nextStreak())) throw apiError('sum');
-      items.forEach(i=>{ const id=uid(); S.items[id]={id,name:i.name,value:i.value,author:S.name,img:i.img,mine:true}; S.pool.push(id); });
+      if(items.some(i=>i.value%10)) throw apiError('bad_item');
+      items.forEach(i=>{ const id=uid(); S.items[id]={id,name:i.name,value:i.value,author:S.name,img:i.img,mine:true,public:!!i.public,created:Date.now()}; S.pool.push(id); });
       S.streak=nextStreak(); S.lastDay=d; S.drewDay=d; S.tandas=S.tandasDay===d?S.tandas+1:1; S.tandasDay=d;
       if(!S.started && S.pool.length>=S.goal) S.started=true;
       save(); return me();
@@ -199,16 +219,22 @@ const LocalAPI = (()=>{
     find:wrap(q=>{ q=String(q).trim().toLowerCase(); return BOTS.filter(n=>n.toLowerCase().startsWith(q)).map(n=>({id:'bot:'+n,name:n})); }),
     gift:wrap((id,to)=>{ if(!S.inv.includes(id)) throw apiError('bad_item'); S.inv=S.inv.filter(x=>x!==id); save(); return me(); }),
     gallery:wrap((sort,mine,offset)=>{
-      let L=Object.values(S.items).filter(i=>!i.hidden&&(!mine||i.mine));
-      L=sort==='price'?L.sort((a,b)=>b.value-a.value):L.reverse();
+      const V=id=>{ const v=S.votes[id]||{l:0,d:0,mine:null}; return {likes:v.l+(v.mine===1?1:0),dislikes:v.d+(v.mine===-1?1:0),my_vote:v.mine}; };
+      let L=Object.values(S.items).filter(i=>!i.hidden&&(mine?i.mine:i.public));
+      const sc=i=>{ const v=V(i.id); return v.likes-v.dislikes; };
+      L.sort(sort==='price'?(a,b)=>b.value-a.value:sort==='top'?(a,b)=>sc(b)-sc(a):(a,b)=>(b.created||0)-(a.created||0));
       return L.slice(offset||0,(offset||0)+60).map(i=>({...itemOut(i.id),in_pool:S.pool.includes(i.id),
-        owner:S.inv.includes(i.id)?S.name:null}));
+        owner:S.inv.includes(i.id)?S.name:null,...V(i.id)}));
     }),
+    setPublic:wrap((id,on)=>{ const it=S.items[id]; if(!it||!it.mine) throw apiError('bad_item'); it.public=!!on; save(); return {public:it.public}; }),
+    vote:wrap((id,v)=>{ const it=S.items[id]; if(!it||it.mine||!it.public) throw apiError('bad_item');
+      const r=S.votes[id]||(S.votes[id]={l:0,d:0,mine:null}); r.mine=v||null; save();
+      return {likes:r.l+(r.mine===1?1:0),dislikes:r.d+(r.mine===-1?1:0),my_vote:r.mine}; }),
     getCode:()=>null,
     useCode:()=>Promise.reject(apiError('bad_code')),
     // só no modo proba
     nextDay:wrap(()=>{ S.offset++; save(); tick(); return me(); }),
-    simulate:wrap(()=>{ for(let k=0;k<10;k++) botBatch(); botsTakeMine(); if(!S.started && S.pool.length>=S.goal) S.started=true; save(); return me(); }),
+    simulate:wrap(()=>{ for(let k=0;k<10;k++) botBatch(); botsTakeMine(); botVotes(); if(!S.started && S.pool.length>=S.goal) S.started=true; save(); return me(); }),
     reset:()=>{ try{localStorage.removeItem(LS);}catch(e){} S=null; tick(); return ok(me()); },
   };
 })();

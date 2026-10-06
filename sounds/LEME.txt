@@ -4,8 +4,8 @@ crank.mp3        manivela (trinquete, 1 s aprox.)
 rattle.mp3       bolas removéndose dentro da máquina
 drop.mp3         a cápsula cae na saída
 open.mp3         abrir a cápsula (pop de plástico)
-reveal-low.mp3   aparece un obxecto de ¥0-5 (chasco)
-reveal-mid.mp3   aparece un obxecto de ¥6-100
-reveal-high.mp3  aparece un obxecto de ¥101 ou máis (premio gordo)
+reveal-low.mp3   aparece un obxecto de ¥0-50 (chasco)
+reveal-mid.mp3   aparece un obxecto de ¥60-1000
+reveal-high.mp3  aparece un obxecto de ¥1010 ou máis (premio gordo)
 coin.mp3         meter os teus 3 debuxos na máquina
 music.mp3        música de fondo en bucle (volume baixo)

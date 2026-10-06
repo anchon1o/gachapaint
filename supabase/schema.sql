@@ -81,6 +81,28 @@ create table if not exists gch_events(
 create index if not exists gch_events_recipient_idx on gch_events(recipient_id) where not seen;
 create index if not exists gch_events_taker_idx on gch_events(taker_id);
 
+-- versión 3: prezos x10, galería pública e votos
+alter table gch_state  add column if not exists version int not null default 1;
+alter table gch_state  add column if not exists settled_week date;
+alter table gch_items  add column if not exists public boolean not null default false;
+alter table gch_events add column if not exists amount int;
+create table if not exists gch_votes(
+  item_id   uuid not null references gch_items(id) on delete cascade,
+  player_id uuid not null references gch_players(id) on delete cascade,
+  week      date not null,
+  vote      smallint not null check (vote in (-1, 1)),
+  primary key (item_id, player_id, week)
+);
+alter table gch_votes enable row level security;
+revoke all on gch_votes from anon, authenticated;
+-- multiplica por 10 os prezos que xa había (só se fai unha vez, aínda que executes o ficheiro máis veces)
+do $$ begin
+  if (select version from gch_state where id = 1) < 3 then
+    update gch_items set value = value * 10;
+    update gch_state set version = 3 where id = 1;
+  end if;
+end $$;
+
 alter table gch_reports enable row level security;
 alter table gch_events  enable row level security;
 revoke all on gch_reports, gch_events from anon, authenticated;
@@ -96,7 +118,7 @@ language sql stable as $$ select (now() at time zone 'Europe/Madrid')::date $$;
 
 create or replace function gch_budget(n int) returns int
 language sql immutable as $$
-  select case when n > 0 and n % 30 = 0 then 1000 when n > 0 and n % 10 = 0 then 500 else 100 end $$;
+  select case when n > 0 and n % 30 = 0 then 10000 when n > 0 and n % 10 = 0 then 5000 else 1000 end $$;
 
 create or replace function gch_player(p_secret uuid) returns gch_players
 language plpgsql security definer set search_path = public as $$
@@ -110,7 +132,7 @@ end $$;
 create or replace function gch_item_json(i gch_items, me uuid) returns jsonb
 language sql stable as $$
   select jsonb_build_object('id', i.id, 'name', i.name, 'value', i.value,
-    'author', i.author_name, 'img', i.img, 'mine', i.author_id = me) $$;
+    'author', i.author_name, 'img', i.img, 'mine', i.author_id = me, 'public', i.public) $$;
 
 create or replace function gch_me_json(p gch_players) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -124,7 +146,7 @@ begin
   select coalesce(jsonb_agg(gch_item_json(i, p.id) order by i.value desc), '[]'::jsonb) into inv
     from gch_items i where i.owner_id = p.id and not i.pending;
   select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'kind', e.kind, 'who', e.actor_name,
-           'item', e.item_name, 'reaction', e.reaction) order by e.created_at desc), '[]'::jsonb) into ev
+           'item', e.item_name, 'reaction', e.reaction, 'amount', e.amount) order by e.created_at desc), '[]'::jsonb) into ev
     from (select * from gch_events where recipient_id = p.id and not seen order by created_at desc limit 20) e;
   select count(*) filter (where reaction = 'love'), count(*) filter (where reaction = 'meh') into h, l
     from gch_events where recipient_id = p.id and kind = 'took';
@@ -148,9 +170,32 @@ begin
   return jsonb_build_object('secret', p.secret, 'me', gch_me_json(p));
 end $$;
 
+create or replace function gch_week() returns date
+language sql stable as $$ select date_trunc('week', gch_today())::date $$;
+
+-- cada luns: os votos da semana anterior cambian o valor (±¥10 por voto neto, nunca por debaixo de 0)
+create or replace function gch_settle() returns void
+language plpgsql security definer set search_path = public as $$
+declare w date := gch_week(); st gch_state; r record;
+begin
+  select * into st from gch_state where id = 1;
+  if st.settled_week is not null and st.settled_week >= w then return; end if;
+  select * into st from gch_state where id = 1 for update;
+  if st.settled_week is not null and st.settled_week >= w then return; end if;
+  for r in select v.item_id, sum(v.vote)::int as sc from gch_votes v
+           where v.week < w and (st.settled_week is null or v.week >= st.settled_week)
+           group by v.item_id having sum(v.vote) <> 0 loop
+    update gch_items set value = greatest(0, value + 10 * r.sc) where id = r.item_id;
+    insert into gch_events(recipient_id, kind, actor_name, item_id, item_name, amount)
+      select author_id, case when r.sc > 0 then 'rise' else 'fall' end, '', id, name, value
+      from gch_items where id = r.item_id;
+  end loop;
+  update gch_state set settled_week = w where id = 1;
+end $$;
+
 create or replace function gch_me(p_secret uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
-begin return gch_me_json(gch_player(p_secret)); end $$;
+begin perform gch_settle(); return gch_me_json(gch_player(p_secret)); end $$;
 
 create or replace function gch_rename(p_secret uuid, p_name text) returns jsonb
 language plpgsql security definer set search_path = public as $$
@@ -179,7 +224,7 @@ begin
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) <> 3 then raise exception 'gch:bad_item'; end if;
   ns := case when p.last_day = t then p.streak when p.last_day = t - 1 then p.streak + 1 else 1 end;
   for it in select * from jsonb_array_elements(p_items) loop
-    if coalesce(btrim(it->>'name'), '') = '' or coalesce(it->>'value', '') !~ '^\d+$'
+    if coalesce(btrim(it->>'name'), '') = '' or coalesce(it->>'value', '') !~ '^\d+0$|^0$'
        or coalesce(it->>'img', '') !~ '^items/[0-9a-f-]{36}\.(webp|png)$'
        or not exists (select 1 from storage.objects o where o.bucket_id = 'gachapaint' and o.name = it->>'img')
        or exists (select 1 from gch_items g where g.img = it->>'img') then
@@ -188,8 +233,8 @@ begin
     total := total + (it->>'value')::int;
   end loop;
   if total <> gch_budget(ns) then raise exception 'gch:sum'; end if;
-  insert into gch_items(author_id, author_name, name, value, img)
-    select p.id, p.name, left(btrim(e->>'name'), 40), (e->>'value')::int, e->>'img'
+  insert into gch_items(author_id, author_name, name, value, img, public)
+    select p.id, p.name, left(btrim(e->>'name'), 40), (e->>'value')::int, e->>'img', coalesce((e->>'public')::boolean, false)
     from jsonb_array_elements(p_items) e;
   update gch_players set streak = ns, last_day = t, drew_day = t,
     tandas = case when tandas_day = t then tandas + 1 else 1 end, tandas_day = t
@@ -347,31 +392,68 @@ begin
   return gch_me_json(p);
 end $$;
 
--- galería: toda a obra (menos o oculto), por páxinas de 60
+-- galería: só o que cada autor marca como público (en "Só os meus" ves todo o teu)
 create or replace function gch_gallery(p_secret uuid, p_sort text default 'new', p_mine boolean default false, p_offset int default 0) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare p gch_players; r jsonb;
+declare p gch_players; r jsonb; w date := gch_week();
 begin
+  perform gch_settle();
   p := gch_player(p_secret);
   select coalesce(jsonb_agg(x.j order by x.rn), '[]'::jsonb) into r from (
-    select gch_item_json(i, p.id) || jsonb_build_object('owner', o.name, 'in_pool', i.in_pool) as j,
-           row_number() over (order by case when p_sort = 'price' then i.value end desc nulls last, i.created_at desc) as rn
-    from gch_items i left join gch_players o on o.id = i.owner_id and not i.pending
-    where not i.hidden and (not p_mine or i.author_id = p.id)
+    select gch_item_json(i, p.id) || jsonb_build_object('owner', o.name, 'in_pool', i.in_pool,
+             'likes', coalesce(vs.l, 0), 'dislikes', coalesce(vs.d, 0), 'my_vote', mv.vote) as j,
+           row_number() over (order by
+             case when p_sort = 'price' then i.value end desc nulls last,
+             case when p_sort = 'top' then coalesce(vs.l, 0) - coalesce(vs.d, 0) end desc nulls last,
+             i.created_at desc) as rn
+    from gch_items i
+    left join gch_players o on o.id = i.owner_id and not i.pending
+    left join lateral (select count(*) filter (where vote = 1) as l, count(*) filter (where vote = -1) as d
+                       from gch_votes where item_id = i.id and week = w) vs on true
+    left join gch_votes mv on mv.item_id = i.id and mv.player_id = p.id and mv.week = w
+    where not i.hidden and (case when p_mine then i.author_id = p.id else i.public end)
     order by rn offset greatest(0, p_offset) limit 60) x;
   return r;
 end $$;
 
+create or replace function gch_set_public(p_secret uuid, p_item uuid, p_public boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p gch_players;
+begin
+  p := gch_player(p_secret);
+  update gch_items set public = p_public where id = p_item and author_id = p.id and not hidden;
+  if not found then raise exception 'gch:bad_item'; end if;
+  return jsonb_build_object('public', p_public);
+end $$;
+
+-- votar (1 = corazón, -1 = polgar abaixo, 0 = quitar o voto); non se votan os propios
+create or replace function gch_vote(p_secret uuid, p_item uuid, p_vote int) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare p gch_players; w date := gch_week(); l int; d int;
+begin
+  p := gch_player(p_secret);
+  if not exists (select 1 from gch_items where id = p_item and public and not hidden and author_id <> p.id) then
+    raise exception 'gch:bad_item'; end if;
+  if p_vote = 0 then delete from gch_votes where item_id = p_item and player_id = p.id and week = w;
+  elsif p_vote in (1, -1) then
+    insert into gch_votes(item_id, player_id, week, vote) values (p_item, p.id, w, p_vote)
+    on conflict (item_id, player_id, week) do update set vote = excluded.vote;
+  else raise exception 'gch:bad_item'; end if;
+  select count(*) filter (where vote = 1), count(*) filter (where vote = -1) into l, d
+    from gch_votes where item_id = p_item and week = w;
+  return jsonb_build_object('likes', l, 'dislikes', d, 'my_vote', nullif(p_vote, 0));
+end $$;
+
 -- ------------------------- permisos -------------------------
-revoke execute on function gch_player(uuid), gch_item_json(gch_items, uuid), gch_me_json(gch_players)
+revoke execute on function gch_player(uuid), gch_item_json(gch_items, uuid), gch_me_json(gch_players), gch_settle()
   from public, anon, authenticated;
 revoke execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
   gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
-  gch_gallery(uuid, text, boolean, int)
+  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int)
   from public;
 grant execute on function gch_join(text), gch_me(uuid), gch_rename(uuid, text), gch_pool(),
   gch_submit(uuid, jsonb), gch_pull(uuid), gch_keep(uuid, uuid), gch_release(uuid, uuid), gch_ranking(uuid),
   gch_seen(uuid), gch_react(uuid, uuid, text), gch_report(uuid, uuid), gch_album(uuid), gch_find(uuid, text), gch_gift(uuid, uuid, uuid),
-  gch_gallery(uuid, text, boolean, int)
+  gch_gallery(uuid, text, boolean, int), gch_set_public(uuid, uuid, boolean), gch_vote(uuid, uuid, int)
   to anon, authenticated;

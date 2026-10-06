@@ -3,24 +3,25 @@
 // =====================================================================
 const $ = id => document.getElementById(id);
 const ICONS={pen:'icons/pen.png',line:'icons/line.png',rect:'icons/rect.png',ellipse:'icons/ellipse.png',fill:'icons/fill.png',
-  eraser:'icons/eraser.png',undo:'icons/undo.png',smooth:'icons/smooth.png',zoom:'icons/zoom.png',clear:'icons/clear.png'};
+  eraser:'icons/eraser.png',undo:'icons/undo.png',smooth:'icons/smooth.png',zoom:'icons/zoom.png',clear:'icons/clear.png',
+  center:'icons/center.svg',heart:'icons/heart.png',thumbdown:'icons/thumbdown.png',gallery:'icons/gallery.png'};
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let ME=null, POOL={started:false,goal:100,items:[]}, view='machine', busy=false;
 
 /* ---------- cores por prezo (non por rareza) ---------- */
 const TIERS=[
-  {min:751,c:'#22E3F2',dark:true},
-  {min:301,c:'#E0182D'},
-  {min:101,c:'#FFC21A',dark:true},
-  {min:51, c:'#A335EE'},
-  {min:21, c:'#0070DD'},
-  {min:6,  c:'#1EBF3A'},
+  {min:7510,c:'#22E3F2',dark:true},
+  {min:3010,c:'#E0182D'},
+  {min:1010,c:'#FFC21A',dark:true},
+  {min:510, c:'#A335EE'},
+  {min:210, c:'#0070DD'},
+  {min:60,  c:'#1EBF3A'},
   {min:0,  c:'#F2F2F5',dark:true},
 ];
 const tierIx = v => TIERS.findIndex(x=>v>=x.min);
 const tier = v => TIERS[tierIx(v)];
-function rangeLabel(i){ const x=TIERS[i], up=TIERS[i-1]; return up ? `${yen(x.min)}–${Number(up.min-1).toLocaleString(I18N[LANG].locale)}` : `${yen(x.min)}+`; }
-function verdict(v){ return t(v===0?'v0':v<=5?'v1':v<=20?'v2':v<=50?'v3':v<=100?'v4':v<=300?'v5':v<=750?'v6':'v7'); }
+function rangeLabel(i){ const x=TIERS[i], up=TIERS[i-1]; return up ? `${yen(x.min)}–${Number(up.min-10).toLocaleString(I18N[LANG].locale)}` : `${yen(x.min)}+`; }
+function verdict(v){ return t(v===0?'v0':v<=50?'v1':v<=200?'v2':v<=500?'v3':v<=1000?'v4':v<=3000?'v5':v<=7500?'v6':'v7'); }
 
 /* ---------- paleta: 8 familias × 4 tons ---------- */
 const FAMILIES=[
@@ -106,7 +107,7 @@ function showNews(){
   if(newsOpen||!ME||!ME.events||!ME.events.length||$('modal').classList.contains('on')) return;
   newsOpen=true;
   const R={love:' ❤️',meh:' 😅'};
-  openModal(`<h3>${t('newsT')}</h3><div class="rowlist">${ME.events.map(e=>`<div class="news">${esc(e.kind==='gift'?t('newsGift',{who:e.who,item:e.item}):t('newsTook',{who:e.who,item:e.item}))}${R[e.reaction]||''}</div>`).join('')}</div>
+  openModal(`<h3>${t('newsT')}</h3><div class="rowlist">${ME.events.map(e=>`<div class="news">${esc(e.kind==='gift'?t('newsGift',{who:e.who,item:e.item}):e.kind==='rise'?t('newsRise',{item:e.item,v:yen(e.amount||0)}):e.kind==='fall'?t('newsFall',{item:e.item,v:yen(e.amount||0)}):t('newsTook',{who:e.who,item:e.item}))}${R[e.reaction]||''}</div>`).join('')}</div>
     <div class="stack"><button class="btn primary" id="newsOk">${t('ok')}</button></div>`);
   $('newsOk').onclick=()=>{ closeModal(); newsOpen=false; ME.events=[]; api.seen().catch(()=>{}); };
 }
@@ -248,7 +249,7 @@ $('bigcap').onclick=()=>{
   if(revealState!=='closed') return;
   revealState='opening'; const st=$('stage'); st.classList.add('shaking');
   sfx('open',()=>[0,120,240,360].forEach((ms,i)=>setTimeout(()=>beep(500+i*90,.05,'triangle'),ms)));
-  const v=ME.pending?ME.pending.value:0, lvl=v<=5?'low':v<=100?'mid':'high';
+  const v=ME.pending?ME.pending.value:0, lvl=v<=50?'low':v<=1000?'mid':'high';
   setTimeout(()=>{ st.classList.remove('shaking'); st.classList.add('open'); revealState='open';
     sfx(lvl,()=>{ if(lvl==='low'){ beep(400,.15,'sine',.08); setTimeout(()=>beep(300,.25,'sine',.08),160); }
       else { beep(880,.08,'sine',.08); setTimeout(()=>beep(1320,.15,'sine',.08),90); if(lvl==='high') setTimeout(()=>beep(1760,.25,'sine',.08),220); } }); },560);
@@ -323,8 +324,9 @@ function renderDraw(){
     <div class="palette" id="palette"></div>
     <div class="fields">
       <label class="f">${t('fName')}<input id="fName" maxlength="40" placeholder="${esc(t('fNamePh'))}"></label>
-      <label class="f">${t('fPrice')}<input id="fPrice" type="number" inputmode="numeric" min="0" max="${b}" step="1" placeholder="0"></label>
+      <label class="f">${t('fPrice')}<input id="fPrice" type="number" inputmode="numeric" min="0" max="${b}" step="10" placeholder="0"></label>
     </div>
+    <label class="pubchk"><input type="checkbox" id="fPub"> ${t('pubChk')}</label>
     <div class="meter"><div class="mtext" id="mText"></div><div class="bar" id="bar"></div><div id="mSub" style="font-size:13px;color:var(--muted)"></div></div>
     <div class="submit"><button class="btn primary" id="submitBtn">${t('submit')}</button></div>
     <div class="drawinfo"><p class="sub">${t('drawB',{b:yen(b)})}</p>
@@ -339,6 +341,7 @@ function renderDraw(){
   T.innerHTML=[['pen','tPen'],['line','tLine'],['rect','tRect'],['ellipse','tCircle'],['fill','tFill'],['eraser','tEraser']]
       .map(([k,l])=>`<button class="tool ${tool===k?'on':''}" data-t="${k}" aria-label="${tl(l)}">${lab(l)}</button>`).join('')
     + `<button class="tool" id="undoBtn" aria-label="${tl('tUndo')}">${lab('tUndo')}</button>`
+    + `<button class="tool" id="centerBtn" aria-label="${tl('tCenter')}"><img class="ti" src="${ICONS.center}" alt=""></button>`
     + [3,8,16,30].map(s=>`<button class="tool ${size===s?'on':''}" data-s="${s}" aria-label="${t('aSize',{n:s})}"><span class="dotsz" style="width:${Math.max(5,s*.7)}px;height:${Math.max(5,s*.7)}px"></span></button>`).join('')
     + `<button class="tool ${smooth?'on':''}" id="smoothBtn" aria-label="${tl('tSmooth')}" aria-pressed="${smooth}">${lab('tSmooth')}</button>`
     + `<button class="tool" id="zoomBtn" aria-label="${tl('tZoom')}">${lab('tZoom')}</button>`
@@ -350,12 +353,14 @@ function renderDraw(){
   $('zoomBtn').onclick=()=>{ zoom={s:1,x:0,y:0}; applyZoom(); };
   T.querySelectorAll('.tool').forEach(x=>x.title=x.getAttribute('aria-label')||'');
   $('helpBtn').onclick=toolManual;
+  $('centerBtn').onclick=centerDrawing;
   $('undoBtn').onclick=()=>{ if(!undo.length) return; pctx.putImageData(undo.pop(),0,0); commit(-1); };
   $('clearBtn').onclick=()=>{ undo.push(pctx.getImageData(0,0,256,256)); pctx.clearRect(0,0,256,256); const s=draft().slots[cur]; s.strokes=0; s.img=null; saveDraft(); renderSlots(); };
   $('palette').innerHTML=PALETTE.map(c=>`<button class="sw ${c===color?'on':''}" style="background:${c}" data-c="${c}" aria-label="${t('aColor',{n:c})}"></button>`).join('');
   $('palette').querySelectorAll('.sw').forEach(x=>x.onclick=()=>{color=x.dataset.c; if(tool==='eraser') tool='pen'; renderTools();});
   $('fName').oninput=e=>{draft().slots[cur].name=e.target.value;saveDraft();renderSlots();renderMeter();};
   $('fPrice').oninput=e=>{draft().slots[cur].price=e.target.value;saveDraft();renderMeter();renderSlots();};
+  $('fPub').onchange=e=>{draft().slots[cur].pub=e.target.checked;saveDraft();};
   $('submitBtn').onclick=submitDrawings;
   bindPad(); applyZoom(); renderSlots(); renderMeter();
 }
@@ -374,7 +379,7 @@ function renderSlots(){
 function loadSlot(i){
   const s=draft().slots[i]; undo=[]; pctx.clearRect(0,0,256,256);
   if(s.img){ const im=new Image(); im.onload=()=>pctx.drawImage(im,0,0); im.src=s.img; }
-  $('fName').value=s.name; $('fPrice').value=s.price;
+  $('fName').value=s.name; $('fPrice').value=s.price; $('fPub').checked=s.pub!==false;
 }
 function commit(delta=1){ const s=draft().slots[cur]; s.strokes=Math.max(0,s.strokes+delta); s.img=canvasToImg(pad); saveDraft(); renderSlots(); }
 // Liñas, rectángulos e círculos: se case é un cadrado/círculo ou unha liña recta, axústase só
@@ -480,22 +485,32 @@ async function submitDrawings(){
   for(let i=0;i<3;i++){ const s=D.slots[i];
     if(!s.strokes){ cur=i; renderDraw(); return toast(t('eDraw',{i:i+1})); }
     if(!s.name.trim()){ cur=i; renderDraw(); return toast(t('eName',{i:i+1})); }
-    if(s.price===''||!Number.isInteger(+s.price)||+s.price<0){ cur=i; renderDraw(); return toast(t('ePrice',{i:i+1})); } }
+    if(s.price===''||!Number.isInteger(+s.price)||+s.price<0||+s.price%10){ cur=i; renderDraw(); return toast(t('ePrice',{i:i+1})); } }
   const sum=D.slots.reduce((a,s)=>a+(+s.price),0);
   if(sum!==b) return toast(sum<b?t('eLeft',{x:yen(b-sum)}):t('eOver',{x:yen(sum-b)}));
   const btn=$('submitBtn'); btn.disabled=true;
   try{
     const was=ME.started;
-    ME=await api.submit(D.slots.map(s=>({name:s.name.trim().slice(0,40),value:+s.price,img:s.img})));
+    ME=await api.submit(D.slots.map(s=>({name:s.name.trim().slice(0,40),value:+s.price,img:s.img,public:s.pub!==false})));
     POOL=await api.pool();
     DRAFT=null; try{localStorage.removeItem(DKEY);}catch(e){} cur=0;
     sfx('coin'); toast(!was&&ME.started?t('tStarted'):t('tSubmitted')); go('machine');
   }catch(e){ btn.disabled=false; errToast(e); refresh(); }
 }
 
+// centrar: busca onde hai debuxo e móveo ao medio do lenzo
+function centerDrawing(){
+  const d=pctx.getImageData(0,0,256,256).data; let x0=256,y0=256,x1=-1,y1=-1;
+  for(let y=0;y<256;y++) for(let x=0;x<256;x++) if(d[(y*256+x)*4+3]>8){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  if(x1<0) return;
+  const dx=Math.round((256-(x1+x0+1))/2), dy=Math.round((256-(y1+y0+1))/2); if(!dx&&!dy) return;
+  undo.push(pctx.getImageData(0,0,256,256)); if(undo.length>25) undo.shift();
+  const tmp=document.createElement('canvas'); tmp.width=tmp.height=256; tmp.getContext('2d').drawImage(pad,0,0);
+  pctx.clearRect(0,0,256,256); pctx.drawImage(tmp,dx,dy); commit();
+}
 function toolManual(){
   const rows=[['pen','hPen'],['line','hLine'],['rect','hRect'],['ellipse','hCircle'],['fill','hFill'],['eraser','hEraser'],
-    ['undo','hUndo'],[null,'hSize'],['smooth','hSmooth'],['zoom','hZoom'],['clear','hClear']];
+    ['undo','hUndo'],['center','hCenter'],[null,'hSize'],['smooth','hSmooth'],['zoom','hZoom'],['clear','hClear']];
   openModal(`<h3>${t('manualT')}</h3><div class="manual">${rows.map(([ic,k])=>`<div class="mrow">${ic?`<img src="${ICONS[ic]}" alt="">`:'<span class="mdots"><i></i><i></i><i></i></span>'}<p>${t(k)}</p></div>`).join('')}</div>
     <div class="stack"><button class="btn primary" id="manOk">${t('ok')}</button></div>`);
   $('manOk').onclick=closeModal;
@@ -555,11 +570,16 @@ function itemSheet(it,owned){
   openModal(`<div class="sheetitem"><img src="${imgSrc(it.img)}" alt=""><h3>${esc(it.name)}</h3>
     <div class="tprice">${yen(it.value)}</div><p class="sub">${it.mine?t('byYou'):t('by',{a:esc(it.author)})}</p>
     ${it.in_pool?`<p class="status-chip">${t('inPool')}</p>`:it.owner?`<p class="status-chip">${t('ownedBy',{o:esc(it.owner)})}</p>`:''}</div>
+    ${it.mine?`<label class="pubchk sheetpub"><input type="checkbox" id="isPub" ${it.public?'checked':''}> ${t('pubChk')}</label>`:''}
+    ${(it.likes!==undefined&&it.public)?`<div class="votes" id="isVotes">${voteHTML(it)}</div>`:''}
     <div class="stack"><button class="btn" id="isShare">${t('share')}</button>
     ${owned?`<button class="btn" id="isGift">${t('gift')}</button><button class="btn" id="isRel">${t('release')}</button>
     ${it.mine?'':`<button class="linkbtn" id="isRep">${t('report')}</button>`}`:''}
     <button class="btn" id="isClose">${t('close')}</button></div>`);
   $('isClose').onclick=closeModal; $('isShare').onclick=()=>shareItem(it);
+  if($('isPub')) $('isPub').onchange=async e=>{ try{ const r=await api.setPublic(it.id,e.target.checked); it.public=r.public;
+      const inv=ME.inventory.find(x=>x.id===it.id); if(inv) inv.public=r.public; if(view==='gal') renderGal(); }catch(err){ e.target.checked=!e.target.checked; errToast(err); } };
+  if($('isVotes')) bindVotes(it);
   if(!owned) return;
   $('isRel').onclick=async e=>{ if(!e.target.dataset.sure){ e.target.dataset.sure='1'; e.target.textContent=t('sure'); return; }
     try{ ME=await api.release(it.id); POOL=await api.pool(); closeModal(); toast(t('tReturned',{n:it.name})); render(); }catch(err){ errToast(err); } };
@@ -567,6 +587,21 @@ function itemSheet(it,owned){
     try{ ME=await api.report(it.id); POOL=await api.pool(); closeModal(); toast(t('reportedInv')); render(); }catch(err){ errToast(err); } };
   $('isGift').onclick=()=>giftSheet(it);
 }
+function voteHTML(it){
+  const dis=it.mine?'disabled':'';
+  return `<button class="vbtn ${it.my_vote===1?'on':''}" data-v="1" ${dis}><img src="${ICONS.heart}" alt="❤️"><b>${it.likes||0}</b></button>
+    <button class="vbtn ${it.my_vote===-1?'on':''}" data-v="-1" ${dis}><img src="${ICONS.thumbdown}" alt="👎"><b>${it.dislikes||0}</b></button>
+    ${it.mine?`<p class="sub" style="width:100%;margin:4px 0 0">${t('voteOwn')}</p>`:''}`;
+}
+function bindVotes(it){
+  $('isVotes').querySelectorAll('.vbtn').forEach(b=>b.onclick=async()=>{
+    const v=+b.dataset.v, nv=it.my_vote===v?0:v;
+    try{ const r=await api.vote(it.id,nv); Object.assign(it,r); $('isVotes').innerHTML=voteHTML(it); bindVotes(it);
+      const card=document.querySelector(`.frame[data-id="${it.id}"] .vcount`); if(card) card.innerHTML=voteMini(it); }
+    catch(e){ errToast(e); }
+  });
+}
+function voteMini(it){ return `<img src="${ICONS.heart}" alt="❤️">${it.likes||0} <img src="${ICONS.thumbdown}" alt="👎">${it.dislikes||0}`; }
 function giftSheet(it){
   openModal(`<h3>${t('giftT')}</h3><p class="sub">«${esc(it.name)}» · ${yen(it.value)}</p>
     <label class="f"><input id="giftQ" maxlength="20" placeholder="${esc(t('giftPh'))}" autocomplete="off"></label>
@@ -590,7 +625,8 @@ async function renderGal(reset=true){
   const v=$('v-gal');
   if(reset){ GAL=[]; galDone=false;
     v.innerHTML=`<h2>${t('galT')}</h2><p class="sub">${t('galB')}</p>
-      <div class="seg"><button data-gs="new" class="${galSort==='new'?'on':''}">${t('galNew')}</button><button data-gs="price" class="${galSort==='price'?'on':''}">${t('galPrice')}</button></div>
+      <div class="seg"><button data-gs="new" class="${galSort==='new'?'on':''}">${t('galNew')}</button><button data-gs="top" class="${galSort==='top'?'on':''}">${t('galTop')}</button><button data-gs="price" class="${galSort==='price'?'on':''}">${t('galPrice')}</button></div>
+      <p class="sub rule">${t('galRule')}</p>
       <label class="minechk"><input type="checkbox" id="galMine" ${galMine?'checked':''}> ${t('galMine')}</label>
       <div class="gallery" id="galGrid"></div><div class="submit"><button class="btn" id="galMore" hidden>${t('galMore')}</button></div>`;
     v.querySelectorAll('[data-gs]').forEach(b=>b.onclick=()=>{ galSort=b.dataset.gs; renderGal(); });
@@ -605,7 +641,8 @@ async function renderGal(reset=true){
   const grid=$('galGrid');
   if(!GAL.length){ grid.innerHTML=`<div class="emptybox"><b>${t('galEmpty')}</b></div>`; }
   else grid.insertAdjacentHTML('beforeend',page.map(it=>`<button class="frame" data-id="${it.id}"><span class="canvasbg"><img src="${imgSrc(it.img)}" alt="${esc(it.name)}" loading="lazy" decoding="async"></span>
-    <span class="plaque"><b>${esc(it.name)}</b><span>${esc(it.mine?t('byYou'):it.author)} · ${yen(it.value)}</span></span></button>`).join(''));
+    <span class="plaque"><b>${esc(it.name)}</b><span>${esc(it.author)}</span><span class="pval">${yen(it.value)}</span>
+    ${it.public?`<span class="vcount">${voteMini(it)}</span>`:`<span class="vcount priv">${t('privTag')}</span>`}</span></button>`).join(''));
   grid.querySelectorAll('.frame').forEach((b,i)=>{ if(i>=start) b.onclick=()=>itemSheet(GAL.find(x=>x.id===b.dataset.id),false); });
   $('galMore').hidden=galDone;
 }
