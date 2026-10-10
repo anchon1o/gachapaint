@@ -69,10 +69,16 @@ const RemoteAPI = (()=>{
     vote:(id,v)=>rpc('gch_vote',{p_secret:secret,p_item:id,p_vote:v}),
     // código de xogador para recuperar a partida noutro dispositivo
     getCode:()=>secret,
+    // vale o código curto (ABC-DEF-GHJ) e tamén o código longo antigo
     async useCode(code){
-      const old=secret; secret=String(code||'').trim();
-      try{ const m=await rpc('gch_me',{p_secret:secret}); try{localStorage.setItem(KEY,secret);}catch(e){} return m; }
-      catch(e){ secret=old; throw e.code==='network'?e:apiError('bad_code'); }
+      code=String(code||'').trim();
+      if(/^[0-9a-f-]{36}$/i.test(code)){
+        const old=secret; secret=code;
+        try{ const m=await rpc('gch_me',{p_secret:secret}); try{localStorage.setItem(KEY,secret);}catch(e){} return m; }
+        catch(e){ secret=old; throw e.code==='network'?e:apiError('bad_code'); }
+      }
+      const r=await rpc('gch_recover',{p_code:code});
+      secret=r.secret; try{localStorage.setItem(KEY,secret);}catch(e){} return r.me;
     },
   };
 })();
