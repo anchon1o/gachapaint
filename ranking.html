@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="gl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gachapaint · Ranking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FFD23F;--dot:#F2BC12;--panel:#fff;--ink:#231C5C;--muted:#5B5590;--red:#E63946;--pink:#FF7AB6;
+  --display:"Orbitron","Arial Black",sans-serif;--body:"Chakra Petch","Trebuchet MS",system-ui,sans-serif}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{height:100%;margin:0}
+body{font-family:var(--body);color:var(--ink);background:var(--bg);background-image:radial-gradient(var(--dot) 2.5px,transparent 3px);background-size:22px 22px;
+  display:flex;flex-direction:column;overflow:hidden}
+header{flex:none;background:var(--red);border-bottom:4px solid var(--ink);padding:8px 10px;display:flex;align-items:center;gap:8px}
+header svg{flex:none}
+header h1{margin:0;font-family:var(--display);font-weight:900;font-size:clamp(14px,4.6vw,19px);color:#fff;-webkit-text-stroke:1.5px var(--ink);paint-order:stroke fill;text-shadow:2px 2px 0 var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header a{flex:none;font-weight:700;font-size:13px;color:var(--ink);background:#FFE36A;border:3px solid var(--ink);border-radius:10px;padding:5px 9px;text-decoration:none;box-shadow:2px 2px 0 var(--ink)}
+.controls{flex:none;padding:8px 10px 4px}
+.seg{display:flex;border:3px solid var(--ink);border-radius:12px;overflow:hidden;background:var(--panel)}
+.seg+.seg{margin-top:6px}
+.seg button{flex:1;min-width:0;border:0;background:none;padding:7px 4px;font:700 clamp(11px,3.4vw,14px)/1.15 var(--body);color:var(--ink);cursor:pointer}
+.seg button+button{border-left:2px solid var(--ink)}
+.seg button.on{background:var(--ink);color:#fff}
+.seg.small button{font-size:12px;padding:5px 4px}
+.sub{margin:6px 2px 0;font-size:12px;color:var(--muted);line-height:1.3}
+main{flex:1;min-height:0;overflow-y:auto;padding:6px 10px 12px;-webkit-overflow-scrolling:touch}
+ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+li{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;background:var(--panel);border:3px solid var(--ink);border-radius:12px;padding:6px 10px}
+li.art{grid-template-columns:34px 44px 1fr auto}
+.pos{font-family:var(--display);font-weight:900;font-size:17px;text-align:center}
+li:nth-child(1){background:#FFF3B8}li:nth-child(1) .pos{color:#B07800}
+li:nth-child(2) .pos{color:#7C8094}li:nth-child(3) .pos{color:#A0522D}
+.who{min-width:0}
+.who b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.who span{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.val{font-family:var(--display);font-weight:900;font-size:clamp(13px,4vw,16px);text-align:right;white-space:nowrap}
+.thumb{width:44px;height:44px;object-fit:contain;background:#FFFDF6;border:2px solid var(--ink);border-radius:8px}
+.votes{font-weight:700;font-size:13px;text-align:right;white-space:nowrap}
+.msg{background:var(--panel);border:3px dashed var(--ink);border-radius:14px;padding:18px 14px;text-align:center;line-height:1.4;margin-top:4px}
+.msg b{display:block;font-size:16px;margin-bottom:4px}
+.msg a{display:inline-block;margin-top:10px;font-weight:700;color:#fff;background:var(--red);border:3px solid var(--ink);border-radius:12px;padding:7px 14px;text-decoration:none;box-shadow:3px 3px 0 var(--ink)}
+.bar{height:14px;border:3px solid var(--ink);border-radius:999px;background:#fff;overflow:hidden;margin:10px auto 0;max-width:260px}
+.bar span{display:block;height:100%;background:#3DD68C}
+.loading{text-align:center;padding:24px;font-weight:700;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <svg width="34" height="34" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="28" cy="36" r="22" fill="#DCE3F2" stroke="#231C5C" stroke-width="4"/>
+    <path d="M6 36a22 22 0 0 1 44 0z" fill="#fff" stroke="#231C5C" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M9.5 34c2-8 8-14 15-16 5 2 3 6-1 7 6 1 9-4 13-3 4 2 3 7 9 11z" fill="#FF7AB6" stroke="#231C5C" stroke-width="3" stroke-linejoin="round"/>
+    <g transform="rotate(38 46 18)"><rect x="43" y="-6" width="7" height="22" rx="3" fill="#C98A4B" stroke="#231C5C" stroke-width="3"/><path d="M42 21h9c0 6-2 10-4.5 12C44 31 42 27 42 21z" fill="#FF7AB6" stroke="#231C5C" stroke-width="3"/></g>
+  </svg>
+  <h1 id="title">Gachapaint</h1>
+  <a id="play" href="./" target="_top"></a>
+</header>
+<div class="controls">
+  <div class="seg" id="views"></div>
+  <div class="seg small" id="periods" hidden></div>
+  <p class="sub" id="desc"></p>
+</div>
+<main id="list"><div class="loading">…</div></main>
+
+<script src="js/config.js"></script>
+<script>
+// ---------- textos ----------
+const TXT={
+ gl:{play:'Xogar ▸',ricos:'💰 Máis caros',pobres:'🪨 Máis baratos',obras:'❤️ Obras',semana:'Esta semana',sempre:'Sempre',
+   dRicos:'Inventarios con máis valor.',dPobres:'Inventarios con menos valor (empate: gaña quen ten máis obxectos).',dObras:'Debuxos da galería con máis votos.',
+   obj1:'1 obxecto',objN:'{n} obxectos',by:'de {a}',
+   emptyT:'Aínda non hai ninguén aquí',emptyB:'Sé a primeira persoa en aparecer no ranking!',emptyObras:'Aínda non hai votos esta semana. Pásate pola galería e vota os teus debuxos favoritos!',
+   fillT:'A máquina estase enchendo',fillB:'Faltan {n} debuxos para que arranque. Axuda a enchela!',go:'Ir debuxar',err:'Non se puido cargar o ranking. Téntao de novo nun momento.'},
+ es:{play:'Jugar ▸',ricos:'💰 Más caros',pobres:'🪨 Más baratos',obras:'❤️ Obras',semana:'Esta semana',sempre:'Siempre',
+   dRicos:'Inventarios con más valor.',dPobres:'Inventarios con menos valor (empate: gana quien tiene más objetos).',dObras:'Dibujos de la galería con más votos.',
+   obj1:'1 objeto',objN:'{n} objetos',by:'de {a}',
+   emptyT:'Aún no hay nadie aquí',emptyB:'¡Sé la primera persona en aparecer en el ranking!',emptyObras:'Aún no hay votos esta semana. ¡Pásate por la galería y vota tus dibujos favoritos!',
+   fillT:'La máquina se está llenando',fillB:'Faltan {n} dibujos para que arranque. ¡Ayuda a llenarla!',go:'Ir a dibujar',err:'No se ha podido cargar el ranking. Inténtalo de nuevo en un momento.'},
+ ca:{play:'Jugar ▸',ricos:'💰 Més cars',pobres:'🪨 Més barats',obras:'❤️ Obres',semana:'Aquesta setmana',sempre:'Sempre',
+   dRicos:'Inventaris amb més valor.',dPobres:'Inventaris amb menys valor (empat: guanya qui té més objectes).',dObras:'Dibuixos de la galeria amb més vots.',
+   obj1:'1 objecte',objN:'{n} objectes',by:'de {a}',
+   emptyT:'Encara no hi ha ningú',emptyB:'Sigues la primera persona del rànquing!',emptyObras:'Encara no hi ha vots aquesta setmana. Passa per la galeria i vota els teus dibuixos preferits!',
+   fillT:'La màquina s\'està omplint',fillB:'Falten {n} dibuixos perquè arrenqui. Ajuda a omplir-la!',go:'Anar a dibuixar',err:'No s\'ha pogut carregar el rànquing. Torna-ho a provar d\'aquí a una estona.'},
+ eu:{play:'Jolastu ▸',ricos:'💰 Garestienak',pobres:'🪨 Merkeenak',obras:'❤️ Lanak',semana:'Aste honetan',sempre:'Beti',
+   dRicos:'Balio handieneko inbentarioak.',dPobres:'Balio txikieneko inbentarioak (berdinketan, objektu gehien dituenak irabazten du).',dObras:'Galeriako marrazki bozkatuenak.',
+   obj1:'objektu 1',objN:'{n} objektu',by:'{a}(r)ena',
+   emptyT:'Oraindik ez dago inor',emptyB:'Izan sailkapenean agertzen den lehena!',emptyObras:'Oraindik ez dago botorik aste honetan. Pasa zaitez galeriatik eta bozkatu gogoko marrazkiak!',
+   fillT:'Makina betetzen ari da',fillB:'{n} marrazki falta dira abiatzeko. Lagundu betetzen!',go:'Marraztera joan',err:'Ezin izan da sailkapena kargatu. Saiatu berriro geroxeago.'},
+};
+const LOC={gl:'gl-ES',es:'es-ES',ca:'ca-ES',eu:'eu-ES'};
+
+// ---------- parámetros da URL ----------
+const Q=new URLSearchParams(location.search);
+const norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+let lang=norm(Q.get('lang')); if(!TXT[lang]) lang='gl';
+const n=Math.min(100,Math.max(1,parseInt(Q.get('n'))||10));
+const VIEW_ALIAS={ricos:'ricos',caros:'ricos',rich:'ricos',cars:'ricos',garestienak:'ricos',
+  pobres:'pobres',baratos:'pobres',poor:'pobres',barats:'pobres',merkeenak:'pobres',
+  obras:'obras',obres:'obras',lanak:'obras',galeria:'obras',votos:'obras',vots:'obras',arte:'obras'};
+const PER_ALIAS={semana:'semana',setmana:'semana',astea:'semana',week:'semana',hoxe:'semana',hoy:'semana',avui:'semana',gaur:'semana',
+  sempre:'sempre',siempre:'sempre',beti:'sempre',always:'sempre',total:'sempre'};
+let view=VIEW_ALIAS[norm(Q.get('v'))]||'ricos';
+let period=PER_ALIAS[norm(Q.get('p'))]||'semana';
+const T=k=>TXT[lang][k];
+const fmt=(s,o)=>s.replace(/\{(\w+)\}/g,(_,k)=>o[k]);
+const yen=v=>'¥'+Number(v).toLocaleString(LOC[lang]);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// ---------- datos ----------
+const CFG=window.GACHA_CONFIG||{}, BASE=(CFG.SUPABASE_URL||'').replace(/\/$/,'');
+const imgSrc=img=>!img?'':img.startsWith('data:')?img:`${BASE}/storage/v1/object/public/gachapaint/${img}`;
+async function load(){
+  const h={'apikey':CFG.SUPABASE_KEY,'Content-Type':'application/json'};
+  if(!String(CFG.SUPABASE_KEY||'').startsWith('sb_')) h.Authorization='Bearer '+CFG.SUPABASE_KEY;
+  const r=await fetch(BASE+'/rest/v1/rpc/gch_ranking_public',{method:'POST',headers:h,body:JSON.stringify({p_view:view,p_period:period,p_limit:n})});
+  if(!r.ok) throw new Error('http '+r.status);
+  return r.json();
+}
+
+// ---------- pintar ----------
+function controls(){
+  document.documentElement.lang=lang;
+  document.getElementById('play').textContent=T('play');
+  const V=document.getElementById('views');
+  V.innerHTML=['ricos','pobres','obras'].map(k=>`<button data-v="${k}" class="${view===k?'on':''}">${T(k)}</button>`).join('');
+  V.querySelectorAll('button').forEach(b=>b.onclick=()=>{ view=b.dataset.v; refresh(); });
+  const P=document.getElementById('periods'); P.hidden=view!=='obras';
+  P.innerHTML=['semana','sempre'].map(k=>`<button data-p="${k}" class="${period===k?'on':''}">${T(k)}</button>`).join('');
+  P.querySelectorAll('button').forEach(b=>b.onclick=()=>{ period=b.dataset.p; refresh(); });
+  document.getElementById('desc').textContent=T(view==='ricos'?'dRicos':view==='pobres'?'dPobres':'dObras');
+}
+function draw(d){
+  const L=document.getElementById('list');
+  if(!d.started && view!=='obras'){
+    const left=Math.max(0,d.goal-d.pool);
+    L.innerHTML=`<div class="msg"><b>${T('fillT')}</b>${fmt(T('fillB'),{n:left})}
+      <div class="bar"><span style="width:${Math.min(100,d.pool/d.goal*100)}%"></span></div><a href="./" target="_top">${T('go')}</a></div>`;
+    return;
+  }
+  if(!d.rows.length){
+    L.innerHTML=`<div class="msg"><b>${T('emptyT')}</b>${view==='obras'?T('emptyObras'):T('emptyB')}<br><a href="./" target="_top">${T('play')}</a></div>`;
+    return;
+  }
+  if(view==='obras'){
+    L.innerHTML='<ol>'+d.rows.map((r,i)=>`<li class="art"><span class="pos">${i+1}</span><img class="thumb" src="${esc(imgSrc(r.img))}" alt="" loading="lazy" decoding="async">
+      <span class="who"><b>${esc(r.name)}</b><span>${esc(fmt(T('by'),{a:r.author}))} · ${yen(r.value)}</span></span>
+      <span class="votes">❤️ ${r.likes}<br>👎 ${r.dislikes}</span></li>`).join('')+'</ol>';
+  } else {
+    L.innerHTML='<ol>'+d.rows.map((r,i)=>`<li><span class="pos">${i+1}</span>
+      <span class="who"><b>${esc(r.name)}</b><span>${r.count===1?T('obj1'):fmt(T('objN'),{n:r.count})}</span></span>
+      <span class="val">${yen(r.total)}</span></li>`).join('')+'</ol>';
+  }
+}
+let req=0;
+async function refresh(){
+  controls();
+  const L=document.getElementById('list'), my=++req;
+  L.innerHTML='<div class="loading">…</div>'; L.scrollTop=0;
+  try{ const d=await load(); if(my===req) draw(d); }
+  catch(e){ if(my===req) L.innerHTML=`<div class="msg">${T('err')}</div>`; }
+}
+refresh();
+</script>
+</body>
+</html>

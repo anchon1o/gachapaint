@@ -133,3 +133,17 @@ truncate gch_items, gch_players; update gch_state set started = false where id =
 
 - Moderación: botón de denunciar debuxos.
 - Ver o espazo usado: **Project Settings → Usage** (o plan gratuíto trae 1 GB para Storage).
+
+## Ranking para incrustar (ranking.html)
+
+Página lixeira só co ranking, para mostrala nun iframe (por exemplo en cagando.vercel.app).
+
+Parámetros da URL:
+- `lang` = gl (por defecto), es, ca ou eu
+- `n` = número de posicións (por defecto 10, máximo 100)
+- `v` = ranking inicial: `ricos` (inventarios máis caros, por defecto), `pobres` (máis baratos) ou `obras` (debuxos máis votados da galería)
+- `p` = período para `obras`: `semana` (por defecto; semana de luns a domingo en hora de España) ou `sempre`
+
+Exemplo: `ranking.html?lang=es&n=5&v=obras&p=semana`
+
+O ficheiro `vercel.json` deixa que esta páxina se mostre dentro de cagando.vercel.app (e cagar.vercel.app).
